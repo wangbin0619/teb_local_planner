@@ -80,6 +80,9 @@ void TebLocalPlannerROS::reconfigureCB(TebLocalPlannerReconfigureConfig& config,
 
 void TebLocalPlannerROS::initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
 {
+
+  ROS_WARN("------------ Welcome to this specific TEB version ----------------");
+
   // check if the plugin is already initialized
   if(!initialized_)
   {	
