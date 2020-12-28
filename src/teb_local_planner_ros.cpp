@@ -254,6 +254,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   }
 
   // update via-points container
+  // wangbin - to be updated for SZYH coverage plan
   if (!custom_via_points_active_)
     updateViaPointsContainer(transformed_plan, cfg_.trajectory.global_plan_viapoint_sep);
 
@@ -274,6 +275,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   
   
   // check if we should enter any backup mode and apply settings
+  // wangbin - what is backup mode?
   configureBackupModes(transformed_plan, goal_idx);
   
     
@@ -286,6 +288,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
               
   // Get current goal point (last point of the transformed plan)
   tf::Stamped<tf::Pose> goal_point;
+  // convert PoseStamped msg to Stamped<Pose>
   tf::poseStampedMsgToTF(transformed_plan.back(), goal_point);
   robot_goal_.x() = goal_point.getOrigin().getX();
   robot_goal_.y() = goal_point.getOrigin().getY();      
@@ -345,6 +348,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     costmap_2d::calculateMinAndMaxDistances(footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius);
   }
 
+  // wangbin: to check if the nearest via point impact on the Trajectory feasibility
   bool feasible = planner_->isTrajectoryFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, cfg_.trajectory.feasibility_check_no_poses);
   if (!feasible)
   {
@@ -587,6 +591,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
   for (std::size_t i=1; i < transformed_plan.size(); ++i) // skip first one, since we do not need any point before the first min_separation [m]
   {
     // check separation to the previous via-point inserted
+    // wangbin: ?? since the transformed plan include the pose behind the robot, how to avoid the via point behind the robot?
     if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
       continue;
         
@@ -615,10 +620,29 @@ bool TebLocalPlannerROS::pruneGlobalPlan(const tf::TransformListener& tf, const 
   {
     // transform robot pose into the plan frame (we do not wait here, since pruning not crucial, if missed a few times)
     tf::StampedTransform global_to_plan_transform;
+
+    /*
+    void Transformer::lookupTransform	(	const std::string & 	target_frame,
+    const std::string & 	source_frame,
+    const ros::Time & 	time,
+    StampedTransform & 	transform 
+    )		const
+    Get the transform between two frames by frame ID.
+
+    Parameters:
+    target_frame	The frame to which data should be transformed
+    source_frame	The frame where the data originated
+    time	The time at which the value of the transform is desired. (0 will get the latest)
+    transform	The transform reference to fill.
+    */
     tf.lookupTransform(global_plan.front().header.frame_id, global_pose.frame_id_, ros::Time(0), global_to_plan_transform);
     tf::Stamped<tf::Pose> robot;
+
+    // wangbin: transform the input current global pose pose to local pose
     robot.setData( global_to_plan_transform * global_pose );
     
+    // wangbin: calculate the square area threshold based on dist_behind_robot
+    // wangbin: and keep the plan (only behind and not ahead) within this squear area
     double dist_thresh_sq = dist_behind_robot*dist_behind_robot;
     
     // iterate plan until a pose close the robot is found

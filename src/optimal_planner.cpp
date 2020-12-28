@@ -290,7 +290,7 @@ bool TebOptimalPlanner::plan(const PoseSE2& start, const PoseSE2& goal, const ge
       teb_.updateAndPruneTEB(start, goal, cfg_->trajectory.min_samples);
     else // goal too far away -> reinit
     {
-      ROS_DEBUG("New goal: distance to existing goal is higher than the specified threshold. Reinitalizing trajectories.");
+      ROS_INFO("New goal: distance to existing goal is higher than the specified threshold. Reinitalizing trajectories.");
       teb_.clearTimedElasticBand();
       teb_.initTrajectoryToGoal(start, goal, 0, cfg_->robot.max_vel_x, cfg_->trajectory.min_samples, cfg_->trajectory.allow_init_with_backwards_motion);
     }
@@ -671,6 +671,7 @@ void TebOptimalPlanner::AddEdgesDynamicObstacles(double weight_multiplier)
   }
 }
 
+// wangbin++: key function to make Via points impact only tranjectory plan
 void TebOptimalPlanner::AddEdgesViaPoints()
 {
   if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
@@ -679,29 +680,41 @@ void TebOptimalPlanner::AddEdgesViaPoints()
   int start_pose_idx = 0;
   
   int n = teb_.sizePoses();
+  // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): teb_.sizePoses() = %d degrees of freedom for reaching via-points.", n);
+  // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): cfg_->trajectory.via_points_ordered = %d ", cfg_->trajectory.via_points_ordered);
+
   if (n<3) // we do not have any degrees of freedom for reaching via-points
+    ROS_WARN("TebOptimalPlanner::AddEdgesViaPoints(): we do not have any degrees of freedom for reaching via-points.");
     return;
   
   for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it)
   {
     
     int index = teb_.findClosestTrajectoryPose(*vp_it, NULL, start_pose_idx);
+    ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): index of Closest Trajectory Pose = %d.", index);
+
     if (cfg_->trajectory.via_points_ordered)
       start_pose_idx = index+2; // skip a point to have a DOF inbetween for further via-points
      
     // check if point conicides with goal or is located behind it
     if ( index > n-2 ) 
+    {
       index = n-2; // set to a pose before the goal, since we can move it away!
+      ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with goal or is located behind it.");
+    }
+
     // check if point coincides with start or is located before it
     if ( index < 1)
     {
+      ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with start or is located before it.");
       if (cfg_->trajectory.via_points_ordered)
       {
+        ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): to connect the via point with the second (and non-fixed) pose.");
         index = 1; // try to connect the via point with the second (and non-fixed) pose. It is likely that autoresize adds new poses inbetween later.
       }
       else
       {
-        ROS_DEBUG("TebOptimalPlanner::AddEdgesViaPoints(): skipping a via-point that is close or behind the current robot pose.");
+        ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): skipping a via-point that is close or behind the current robot pose.");
         continue; // skip via points really close or behind the current robot pose
       }
     }
