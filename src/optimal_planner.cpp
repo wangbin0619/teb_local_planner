@@ -708,7 +708,7 @@ void TebOptimalPlanner::AddEdgesViaPoints()
     // check if point coincides with start or is located before it
     if ( index < 1)
     {
-      ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with start or is located before it.");
+      // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with start or is located before it.");
       if (cfg_->trajectory.via_points_ordered)
       {
         // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): to connect the via point with the second (and non-fixed) pose.");

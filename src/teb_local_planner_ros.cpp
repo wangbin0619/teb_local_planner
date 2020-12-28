@@ -64,7 +64,7 @@ namespace teb_local_planner
 TebLocalPlannerROS::TebLocalPlannerROS() : costmap_ros_(NULL), tf_(NULL), costmap_model_(NULL),
                                            costmap_converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"),
                                            dynamic_recfg_(NULL), custom_via_points_active_(false), goal_reached_(false), no_infeasible_plans_(0),
-                                           last_preferred_rotdir_(RotType::none), initialized_(false)
+                                           last_preferred_rotdir_(RotType::none), my_via_point_adjustment_(false), my_via_point_distance_(0.0), initialized_(false)
 {
 }
 
@@ -253,6 +253,11 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     return false;
   }
 
+  // check if we should enter any backup mode and apply settings
+  // wangbin++: it is for oscillation detection and recovery
+  // wangbin++: Move the following oscillation detection before the set the via points for SZYH purpose.
+  configureBackupModes(transformed_plan, goal_idx);
+
   // update via-points container
   // wangbin - to be updated for SZYH coverage plan
   if (!custom_via_points_active_)
@@ -275,8 +280,9 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   
   
   // check if we should enter any backup mode and apply settings
-  // wangbin - what is backup mode?
-  configureBackupModes(transformed_plan, goal_idx);
+  // wangbin++: it is for oscillation detection and recovery
+  // wangbin++: Move the following oscillation detection before the set the via points for SZYH purpose.
+  // configureBackupModes(transformed_plan, goal_idx);
   
     
   // Return false if the transformed global plan is empty
@@ -584,7 +590,12 @@ void TebLocalPlannerROS::updateObstacleContainerWithCustomObstacles()
 void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msgs::PoseStamped>& transformed_plan, double min_separation)
 {
   via_points_.clear();
+
+  // ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer - Entry.");
   
+  double tmp_distance = 0.0;
+  bool first_point = true;
+
   if (min_separation<=0)
     return;
   
@@ -593,12 +604,30 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
   {
     // check separation to the previous via-point inserted
     // wangbin: ?? since the transformed plan include the pose behind the robot, how to avoid the via point behind the robot?
-    if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
+
+    if(my_via_point_adjustment_ && first_point)
+    {
+      my_via_point_distance_ = min_separation * 6;
+      tmp_distance = my_via_point_distance_;
+      first_point = false;
+      ROS_INFO("TebLocalPlannerROS:: wangbin adjust separation %lf", tmp_distance);
+    }
+    else
+    {
+      tmp_distance = min_separation;
+    }
+
+    if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < tmp_distance)
       continue;
+    
+    //if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
+    //  continue;
         
     // add via-point
     via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     prev_idx = i;
+
+    //ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer separation %lf", tmp_distance);
   }
   
 }
@@ -970,6 +999,9 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
                 else
                     last_preferred_rotdir_ = RotType::right;
                 ROS_WARN("TebLocalPlannerROS: possible oscillation (of the robot or its local plan) detected. Activating recovery strategy (prefer current turning direction during optimization).");
+                
+                ROS_INFO("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ enabled.");
+                my_via_point_adjustment_ = true;
             }
             time_last_oscillation_ = ros::Time::now();  
             planner_->setPreferredTurningDir(last_preferred_rotdir_);
@@ -979,6 +1011,9 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
             last_preferred_rotdir_ = RotType::none;
             planner_->setPreferredTurningDir(last_preferred_rotdir_);
             ROS_INFO("TebLocalPlannerROS: oscillation recovery disabled/expired.");
+
+            ROS_INFO("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ disabled/expired.");
+            my_via_point_adjustment_ = false;
         }
     }
 
