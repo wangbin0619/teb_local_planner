@@ -684,14 +684,16 @@ void TebOptimalPlanner::AddEdgesViaPoints()
   // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): cfg_->trajectory.via_points_ordered = %d ", cfg_->trajectory.via_points_ordered);
 
   if (n<3) // we do not have any degrees of freedom for reaching via-points
+  {
     ROS_WARN("TebOptimalPlanner::AddEdgesViaPoints(): we do not have any degrees of freedom for reaching via-points.");
     return;
+  }
   
   for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it)
   {
-    
+    // wangbin++: based on initial Trajectory which no costmap / obstacle considered
     int index = teb_.findClosestTrajectoryPose(*vp_it, NULL, start_pose_idx);
-    ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): index of Closest Trajectory Pose = %d.", index);
+    // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): index of Closest Trajectory Pose = %d.", index);
 
     if (cfg_->trajectory.via_points_ordered)
       start_pose_idx = index+2; // skip a point to have a DOF inbetween for further via-points
@@ -700,7 +702,7 @@ void TebOptimalPlanner::AddEdgesViaPoints()
     if ( index > n-2 ) 
     {
       index = n-2; // set to a pose before the goal, since we can move it away!
-      ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with goal or is located behind it.");
+      // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with goal or is located behind it.");
     }
 
     // check if point coincides with start or is located before it
@@ -709,7 +711,7 @@ void TebOptimalPlanner::AddEdgesViaPoints()
       ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): Point conicides with start or is located before it.");
       if (cfg_->trajectory.via_points_ordered)
       {
-        ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): to connect the via point with the second (and non-fixed) pose.");
+        // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): to connect the via point with the second (and non-fixed) pose.");
         index = 1; // try to connect the via point with the second (and non-fixed) pose. It is likely that autoresize adds new poses inbetween later.
       }
       else

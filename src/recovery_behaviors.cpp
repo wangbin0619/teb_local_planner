@@ -109,7 +109,7 @@ bool FailureDetector::detect(double v_eps, double omega_eps)
     {
         oscillating_ = true;
     }
-//     ROS_INFO_STREAM("v: " << std::abs(v_mean) << ", omega: " << std::abs(omega_mean) << ", zero crossings: " << omega_zero_crossings);
+    ROS_INFO_STREAM("v: " << std::abs(v_mean) << ", omega: " << std::abs(omega_mean) << ", zero crossings: " << omega_zero_crossings);
     return oscillating_;
 }
     

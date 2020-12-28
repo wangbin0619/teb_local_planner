@@ -325,9 +325,10 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     
   // Do not allow config changes during the following optimization step
   boost::mutex::scoped_lock cfg_lock(cfg_.configMutex());
-    
+
+  // wangbin++  
   // Now perform the actual planning
-//   bool success = planner_->plan(robot_pose_, robot_goal_, robot_vel_, cfg_.goal_tolerance.free_goal_vel); // straight line init
+  // bool success = planner_->plan(robot_pose_, robot_goal_, robot_vel_, cfg_.goal_tolerance.free_goal_vel); // straight line init
   bool success = planner_->plan(transformed_plan, &robot_vel_, cfg_.goal_tolerance.free_goal_vel);
   if (!success)
   {

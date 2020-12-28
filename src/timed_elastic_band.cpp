@@ -351,7 +351,7 @@ bool TimedElasticBand::initTrajectoryToGoal(const PoseSE2& start, const PoseSE2&
 
 bool TimedElasticBand::initTrajectoryToGoal(const std::vector<geometry_msgs::PoseStamped>& plan, double max_vel_x, bool estimate_orient, int min_samples, bool guess_backwards_motion)
 {
-  
+  // wangbin: The initial Trajectory to Goal do NOT condsider that cost map / obstacle info.
   if (!isInit())
   {
     PoseSE2 start(plan.front().pose);
