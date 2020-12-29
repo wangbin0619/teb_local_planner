@@ -680,7 +680,7 @@ void TebOptimalPlanner::AddEdgesViaPoints()
   int start_pose_idx = 0;
   
   int n = teb_.sizePoses();
-  // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): teb_.sizePoses() = %d degrees of freedom for reaching via-points.", n);
+  ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): teb_.sizePoses() = %d degrees of freedom for reaching via-points.", n);
   // ROS_INFO("TebOptimalPlanner::AddEdgesViaPoints(): cfg_->trajectory.via_points_ordered = %d ", cfg_->trajectory.via_points_ordered);
 
   if (n<3) // we do not have any degrees of freedom for reaching via-points
