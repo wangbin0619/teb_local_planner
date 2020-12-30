@@ -594,12 +594,29 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
   // ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer - Entry.");
   
   double tmp_distance = 0.0;
+
+  if(no_infeasible_plans_ >= 5)
+  {
+    ROS_WARN("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ enabled.");
+    my_via_point_adjustment_ = true;
+    my_via_point_distance_ = my_via_point_distance_ + min_separation;    
+  }
+  else if (no_infeasible_plans_ == 0 && my_via_point_adjustment_)
+  {
+    ROS_WARN("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ disabled.");
+    my_via_point_adjustment_ = false;
+    my_via_point_distance_ = 0;
+  }
+
   bool first_point = true;
 
   if (min_separation<=0)
     return;
-  
+
   std::size_t prev_idx = 0;
+
+  ROS_WARN("TebLocalPlannerROS: viapoint: x=%lf, y=%lf === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+
   for (std::size_t i=1; i < transformed_plan.size(); ++i) // skip first one, since we do not need any point before the first min_separation [m]
   {
     // check separation to the previous via-point inserted
@@ -607,10 +624,8 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
     if(my_via_point_adjustment_ && first_point)
     {
-      my_via_point_distance_ = min_separation * 6;
       tmp_distance = my_via_point_distance_;
-      first_point = false;
-      ROS_INFO("TebLocalPlannerROS:: wangbin adjust separation %lf", tmp_distance);
+      // ROS_INFO("TebLocalPlannerROS:: wangbin adjust separation %lf", tmp_distance);
     }
     else
     {
@@ -618,16 +633,19 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     }
 
     if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < tmp_distance)
+    {
       continue;
+    }  
     
     //if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
     //  continue;
         
     // add via-point
+    ROS_INFO("TebLocalPlannerROS: viapoint: x=%lf, y=%lf, separation=%lf",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y, tmp_distance);
     via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
-    prev_idx = i;
 
-    //ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer separation %lf", tmp_distance);
+    prev_idx = i;
+    first_point = false;
   }
   
 }
@@ -937,8 +955,7 @@ void TebLocalPlannerROS::validateFootprints(double opt_inscribed_radius, double 
                   "Infeasible optimziation results might occur frequently!", opt_inscribed_radius, min_obst_dist, costmap_inscribed_radius);
 }
    
-   
-   
+
 void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseStamped>& transformed_plan,  int& goal_idx)
 {
     ros::Time current_time = ros::Time::now();
@@ -1000,8 +1017,6 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
                     last_preferred_rotdir_ = RotType::right;
                 ROS_WARN("TebLocalPlannerROS: possible oscillation (of the robot or its local plan) detected. Activating recovery strategy (prefer current turning direction during optimization).");
                 
-                ROS_INFO("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ enabled.");
-                my_via_point_adjustment_ = true;
             }
             time_last_oscillation_ = ros::Time::now();  
             planner_->setPreferredTurningDir(last_preferred_rotdir_);
@@ -1011,9 +1026,6 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
             last_preferred_rotdir_ = RotType::none;
             planner_->setPreferredTurningDir(last_preferred_rotdir_);
             ROS_INFO("TebLocalPlannerROS: oscillation recovery disabled/expired.");
-
-            ROS_INFO("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ disabled/expired.");
-            my_via_point_adjustment_ = false;
         }
     }
 
