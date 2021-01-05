@@ -232,6 +232,24 @@ void TebOptimalPlanner::setVelocityGoal(const geometry_msgs::Twist& vel_goal)
   vel_goal_.second = vel_goal;
 }
 
+/*
+PoseStamped is simply a Pose message with the standard ROS header
+[geometry_msgs/PoseStamped]:
+Header header
+  uint32 seq
+  time stamp
+  string frame_id
+geometry_msgs/Pose pose
+  geometry_msgs/Point position
+    float64 x
+    float64 y
+    float64 z
+  geometry_msgs/Quaternion orientation
+    float64 x
+    float64 y
+    float64 z
+    float64 w
+*/
 bool TebOptimalPlanner::plan(const std::vector<geometry_msgs::PoseStamped>& initial_plan, const geometry_msgs::Twist* start_vel, bool free_goal_vel)
 {    
   ROS_ASSERT_MSG(initialized_, "Call initialize() first.");
@@ -274,6 +292,8 @@ bool TebOptimalPlanner::plan(const tf::Pose& start, const tf::Pose& goal, const 
   return plan(start_, goal_, start_vel);
 }
 
+// This class implements a pose in the domain SE2: R^2 + S^1.
+// The pose consist of the position x and y and an orientation given as angle theta [-pi, pi].
 bool TebOptimalPlanner::plan(const PoseSE2& start, const PoseSE2& goal, const geometry_msgs::Twist* start_vel, bool free_goal_vel)
 {	
   ROS_ASSERT_MSG(initialized_, "Call initialize() first.");
