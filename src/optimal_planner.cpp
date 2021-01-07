@@ -1289,4 +1289,16 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
   return true;
 }
 
+bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
+                                             double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point)
+{
+  if(costmap_model->footprintCost(via_point(0), via_point(1), 0, footprint_spec, inscribed_radius, circumscribed_radius) < 0)
+  {
+    return false;
+  }
+  return true;
+}
+
+
+
 } // namespace teb_local_planner

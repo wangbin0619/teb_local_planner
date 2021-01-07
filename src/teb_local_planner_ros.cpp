@@ -592,24 +592,6 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
   via_points_.clear();
 
   // ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer - Entry.");
-  
-  double tmp_distance = 0.0;
-
-  if(no_infeasible_plans_ >= 5)
-  {
-    ROS_WARN("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ enabled.");
-    my_via_point_adjustment_ = true;
-    my_via_point_distance_ = my_via_point_distance_ + min_separation;    
-  }
-  else if (no_infeasible_plans_ == 0 && my_via_point_adjustment_)
-  {
-    ROS_WARN("TebLocalPlannerROS: wangbin: my_via_point_adjustment_ disabled.");
-    my_via_point_adjustment_ = false;
-    my_via_point_distance_ = 0;
-  }
-
-  bool first_point = true;
-
   if (min_separation<=0)
     return;
 
@@ -622,30 +604,28 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     // check separation to the previous via-point inserted
     // wangbin: ?? since the transformed plan include the pose behind the robot, how to avoid the via point behind the robot?
 
-    if(my_via_point_adjustment_ && first_point)
-    {
-      tmp_distance = my_via_point_distance_;
-      // ROS_INFO("TebLocalPlannerROS:: wangbin adjust separation %lf", tmp_distance);
-    }
-    else
-    {
-      tmp_distance = min_separation;
-    }
-
-    if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < tmp_distance)
+    if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
     {
       continue;
-    }  
-    
+    }
+
     //if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
     //  continue;
         
-    // add via-point
-    ROS_INFO("TebLocalPlannerROS: viapoint: x=%lf, y=%lf, separation=%lf",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y, tmp_distance);
-    via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+    // wangbin: to check if the via point is feasible (out of the obstable)
+    bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y));
+    if (feasible)
+    {
+      // add via-point
+      ROS_INFO("TebLocalPlannerROS: viapoint: x=%lf, y=%lf ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+    }
+    else
+    {
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%lf, y=%lf NOT feasiable!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+    }
 
     prev_idx = i;
-    first_point = false;
   }
   
 }

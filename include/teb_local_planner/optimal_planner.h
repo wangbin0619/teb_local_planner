@@ -511,7 +511,10 @@ public:
           double circumscribed_radius=0.0, int look_ahead_idx=-1);
   
   //@}
-  
+
+  virtual bool isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
+                                             double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point);
+
 protected:
   
   /** @name Hyper-Graph creation and optimization */
