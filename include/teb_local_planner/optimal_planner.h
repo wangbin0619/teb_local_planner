@@ -513,7 +513,7 @@ public:
   //@}
 
   virtual bool isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
-                                             double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point);
+          double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point, double inflation_dist);
 
 protected:
   

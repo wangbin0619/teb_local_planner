@@ -1290,15 +1290,32 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
 }
 
 bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
-                                             double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point)
+                                             double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point, double inflation_dist)
 {
-  if(costmap_model->footprintCost(via_point(0), via_point(1), 0, footprint_spec, inscribed_radius, circumscribed_radius) < 0)
+  // RobotFootprintModelPtr footprint_local = boost::make_shared<CircularRobotFootprint>(1);
+  // std::vector<geometry_msgs::Point>
+
+  std::vector<geometry_msgs::Point> scaled_footprint;
+  for(unsigned int i = 0; i < footprint_spec.size(); ++i)
+  {
+    double scale_factor = 2.0;
+    double radius = sqrt(footprint_spec[i].x * footprint_spec[i].x + footprint_spec[i].y * footprint_spec[i].y);
+    double scaled_radius = radius + scale_factor * inflation_dist;
+    geometry_msgs::Point new_pt;
+
+    new_pt.x = footprint_spec[i].x * scaled_radius / radius;
+    new_pt.y = footprint_spec[i].y * scaled_radius / radius;
+    scaled_footprint.push_back(new_pt);
+    ROS_WARN("TebLocalPlannerROS: r=%.2f R=%.2f x=%.2f, y=%.2f X=%.2f, Y=%.2f", 
+            radius, scaled_radius, footprint_spec[i].x, footprint_spec[i].y, new_pt.x, new_pt.y );
+  }
+
+  if(costmap_model->footprintCost(via_point(0), via_point(1), 0, scaled_footprint, 0, 0) < 0)
   {
     return false;
   }
   return true;
 }
-
 
 
 } // namespace teb_local_planner

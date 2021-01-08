@@ -591,6 +591,8 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 {
   via_points_.clear();
 
+  bool first_infeasibile_viapoint = false;
+
   // ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer - Entry.");
   if (min_separation<=0)
     return;
@@ -608,23 +610,32 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     {
       continue;
     }
-
     //if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
     //  continue;
-        
+
     // wangbin: to check if the via point is feasible (out of the obstable)
-    bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y));
+    bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y), cfg_.obstacles.inflation_dist);
+
     if (feasible)
     {
       // add via-point
-      ROS_INFO("TebLocalPlannerROS: viapoint: x=%lf, y=%lf ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     }
     else
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%lf, y=%lf NOT feasiable!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      if (!first_infeasibile_viapoint)
+      {
+        first_infeasibile_viapoint = true;
+        //via_points_.clear();
+        ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f 1st NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      }
+      else
+      {
+        ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f other NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      }
     }
-
+    
     prev_idx = i;
   }
   
