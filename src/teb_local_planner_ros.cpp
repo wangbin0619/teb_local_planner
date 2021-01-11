@@ -599,7 +599,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
   std::size_t prev_idx = 0;
 
-  ROS_WARN("TebLocalPlannerROS: viapoint: x=%lf, y=%lf === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+  ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
 
   for (std::size_t i=1; i < transformed_plan.size(); ++i) // skip first one, since we do not need any point before the first min_separation [m]
   {
