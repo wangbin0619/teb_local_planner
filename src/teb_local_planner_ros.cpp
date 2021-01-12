@@ -400,12 +400,22 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 
   if(delta_distance < delta_distance_threshold)
   {
-
-    cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, 0.01);
-    cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, 0.01);
-    if(cmd_vel.linear.y > 0)
+    if(cmd_vel.angular.z != 0 )
     {
-        cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, 0.01);
+      double angular_z_threshold = 0.01 * cmd_vel.angular.z / fabs(cmd_vel.angular.z);
+      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, angular_z_threshold);
+    }
+
+    if(cmd_vel.linear.x != 0)
+    {
+      double linear_x_threshold = 0.01 * cmd_vel.linear.x / fabs(cmd_vel.linear.x);
+      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, linear_x_threshold);
+    }
+
+    if(cmd_vel.linear.y != 0)
+    {
+      double linear_y_threshold = 0.01 * cmd_vel.linear.y / fabs(cmd_vel.linear.y);
+      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, linear_y_threshold);
     }
 
     ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
@@ -626,7 +636,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
   std::size_t prev_idx = 0;
 
-  ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+  //ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
 
   for (std::size_t i=1; i < transformed_plan.size(); ++i) // skip first one, since we do not need any point before the first min_separation [m]
   {
