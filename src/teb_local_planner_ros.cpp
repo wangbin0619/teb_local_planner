@@ -400,22 +400,31 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 
   if(delta_distance < delta_distance_threshold)
   {
-    if(cmd_vel.angular.z != 0 )
+    if(cmd_vel.angular.z > 0 )
     {
-      double angular_z_threshold = 0.01 * cmd_vel.angular.z / fabs(cmd_vel.angular.z);
-      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, angular_z_threshold);
+      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, 0.01);
+    }
+    else if (cmd_vel.angular.z < 0)
+    {
+      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_distance / delta_distance_threshold, -0.01);
     }
 
-    if(cmd_vel.linear.x != 0)
+    if(cmd_vel.linear.x > 0)
     {
-      double linear_x_threshold = 0.01 * cmd_vel.linear.x / fabs(cmd_vel.linear.x);
-      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, linear_x_threshold);
+      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, 0.01);
+    }
+    else if(cmd_vel.linear.x < 0)
+    {
+      cmd_vel.linear.x = std::min(cmd_vel.linear.x * delta_distance / delta_distance_threshold, -0.01);
     }
 
-    if(cmd_vel.linear.y != 0)
+    if(cmd_vel.linear.y > 0)
     {
-      double linear_y_threshold = 0.01 * cmd_vel.linear.y / fabs(cmd_vel.linear.y);
-      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, linear_y_threshold);
+      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, 0.01);
+    }
+    else if(cmd_vel.linear.y < 0)
+    {
+      cmd_vel.linear.y = std::min(cmd_vel.linear.y * delta_distance / delta_distance_threshold, -0.01);
     }
 
     ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
@@ -636,8 +645,6 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
   std::size_t prev_idx = 0;
 
-  //ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
-
   for (std::size_t i=1; i < transformed_plan.size(); ++i) // skip first one, since we do not need any point before the first min_separation [m]
   {
     // check separation to the previous via-point inserted
@@ -651,8 +658,9 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     //  continue;
 
     // wangbin: to check if the via point is feasible (out of the obstable)
-    bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y), cfg_.obstacles.inflation_dist);
+    ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
 
+    bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y), cfg_.obstacles.inflation_dist);
     if (feasible)
     {
       // add via-point
