@@ -278,6 +278,11 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
       && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
+    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f == Goal Reached == ", 
+              global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
+              robot_pose_.x(), robot_pose_.y(), 
+              delta_distance, delta_orient);
+
     goal_reached_ = true;
     return true;
   }
@@ -637,7 +642,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 {
   via_points_.clear();
 
-  bool first_infeasibile_viapoint = false;
+  bool start_point = true;
 
   // ROS_INFO("TebLocalPlannerROS:: updateViaPointsContainer - Entry.");
   if (min_separation<=0)
@@ -658,27 +663,23 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     //  continue;
 
     // wangbin: to check if the via point is feasible (out of the obstable)
-    ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+
+    if(start_point)
+    {
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+      start_point = false;
+    }
 
     bool feasible = planner_->isViaPointsFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, Eigen::Vector2d(transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y), cfg_.obstacles.inflation_dist);
     if (feasible)
     {
       // add via-point
-      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     }
     else
     {
-      if (!first_infeasibile_viapoint)
-      {
-        first_infeasibile_viapoint = true;
-        //via_points_.clear();
-        ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f 1st NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
-      }
-      else
-      {
-        ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f other NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
-      }
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
     }
     
     prev_idx = i;
