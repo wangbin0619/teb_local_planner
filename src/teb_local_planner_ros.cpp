@@ -269,16 +269,19 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   global_goal.setData( tf_plan_to_global * global_goal );
   double dx = global_goal.getOrigin().getX() - robot_pose_.x();
   double dy = global_goal.getOrigin().getY() - robot_pose_.y();
-  double delta_orient = g2o::normalize_theta( tf::getYaw(global_goal.getRotation()) - robot_pose_.theta() );
-  if(fabs(std::sqrt(dx*dx+dy*dy)) < cfg_.goal_tolerance.xy_goal_tolerance
-    && fabs(delta_orient) < cfg_.goal_tolerance.yaw_goal_tolerance
-    && (!cfg_.goal_tolerance.complete_global_plan || via_points_.size() == 0))
+
+  double delta_orient = fabs(g2o::normalize_theta( tf::getYaw(global_goal.getRotation()) - robot_pose_.theta()));
+  // wangbin
+  double delta_distance = fabs(std::sqrt(dx*dx+dy*dy));
+
+  if( (delta_distance < cfg_.goal_tolerance.xy_goal_tolerance)
+      && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
+      && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
     goal_reached_ = true;
     return true;
   }
-  
-  
+   
   // check if we should enter any backup mode and apply settings
   // wangbin++: it is for oscillation detection and recovery
   // wangbin++: Move the following oscillation detection before the set the via points for SZYH purpose.
@@ -387,6 +390,30 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   // Saturate velocity, if the optimization results violates the constraints (could be possible due to soft constraints).
   saturateVelocity(cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z, cfg_.robot.max_vel_x, cfg_.robot.max_vel_y,
                    cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
+
+  //wangbin: add the control when robot near the goal
+  double delta_distance_threshold = 0.5;
+  if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
+  {
+    delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
+  }
+
+  if(delta_distance < delta_distance_threshold)
+  {
+
+    cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, 0.01);
+    cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, 0.01);
+    if(cmd_vel.linear.y > 0)
+    {
+        cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, 0.01);
+    }
+
+    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
+              global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
+              robot_pose_.x(), robot_pose_.y(), 
+              delta_distance, delta_orient,
+              cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+  }
 
   // convert rot-vel to steering angle if desired (carlike robot).
   // The min_turning_radius is allowed to be slighly smaller since it is a soft-constraint
