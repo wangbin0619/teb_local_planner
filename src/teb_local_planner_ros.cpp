@@ -278,7 +278,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
       && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
-    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f == Goal Reached == ", 
+    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f y=%.2f DS=%.2f OR=%.2f == Goal Reached == ", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
               delta_distance, delta_orient);
@@ -432,7 +432,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       cmd_vel.linear.y = std::min(cmd_vel.linear.y * delta_distance / delta_distance_threshold, -0.01);
     }
 
-    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f, y=%.2f Dis=%.2f Ori=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
+    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f y=%.2f DS=%.2f OR=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
               delta_distance, delta_orient,
