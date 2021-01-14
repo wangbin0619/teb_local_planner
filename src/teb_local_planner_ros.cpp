@@ -397,9 +397,9 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
                    cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
 
   //wangbin: add the control when robot near the goal
-  double delta_distance_threshold = 0.1;
-  double scale_down_factor = 5;
-  if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
+  double delta_distance_threshold = 0.5;
+  double scale_down_factor = 1.0;
+if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
   {
     delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
   }
@@ -408,29 +408,29 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   {
     if(cmd_vel.angular.z > 0 )
     {
-      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold / scale_down_factor, 0.01);
+      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_orient/delta_distance_threshold/scale_down_factor, 0.01);
     }
     else if (cmd_vel.angular.z < 0)
     {
-      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
+      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_orient/delta_distance_threshold/scale_down_factor, -0.01);
     }
 
     if(cmd_vel.linear.x > 0)
     {
-      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold / scale_down_factor, 0.005);
+      cmd_vel.linear.x = std::max(cmd_vel.linear.x * dx/delta_distance_threshold/scale_down_factor, 0.01);
     }
     else if(cmd_vel.linear.x < 0)
     {
-      cmd_vel.linear.x = std::min(cmd_vel.linear.x * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
+      cmd_vel.linear.x = std::min(cmd_vel.linear.x * dx/delta_distance_threshold/scale_down_factor, -0.01);
     }
 
     if(cmd_vel.linear.y > 0)
     {
-      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold / scale_down_factor, 0.005);
+      cmd_vel.linear.y = std::max(cmd_vel.linear.y * dy/delta_distance_threshold/scale_down_factor, 0.01);
     }
     else if(cmd_vel.linear.y < 0)
     {
-      cmd_vel.linear.y = std::min(cmd_vel.linear.y * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
+      cmd_vel.linear.y = std::min(cmd_vel.linear.y * dy/delta_distance_threshold/scale_down_factor, -0.01);
     }
 
     ROS_WARN("> x=%.3f y=%.3f ^ x=%.3f y=%.3f DS=%.3f OR=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
