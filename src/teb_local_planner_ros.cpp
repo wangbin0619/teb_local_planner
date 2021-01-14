@@ -278,7 +278,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
       && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
-    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f y=%.2f DS=%.2f OR=%.2f == Goal Reached == ", 
+    ROS_WARN("> x=%.3f y=%.3f ^ x=%.3f y=%.3f DS=%.3f OR=%.3f == Goal Reached == ", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
               delta_distance, delta_orient);
@@ -397,7 +397,8 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
                    cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
 
   //wangbin: add the control when robot near the goal
-  double delta_distance_threshold = 0.5;
+  double delta_distance_threshold = 0.1;
+  double scale_down_factor = 5;
   if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
   {
     delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
@@ -407,32 +408,32 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   {
     if(cmd_vel.angular.z > 0 )
     {
-      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold, 0.01);
+      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_distance / delta_distance_threshold / scale_down_factor, 0.01);
     }
     else if (cmd_vel.angular.z < 0)
     {
-      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_distance / delta_distance_threshold, -0.01);
+      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
     }
 
     if(cmd_vel.linear.x > 0)
     {
-      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold, 0.01);
+      cmd_vel.linear.x = std::max(cmd_vel.linear.x * delta_distance / delta_distance_threshold / scale_down_factor, 0.005);
     }
     else if(cmd_vel.linear.x < 0)
     {
-      cmd_vel.linear.x = std::min(cmd_vel.linear.x * delta_distance / delta_distance_threshold, -0.01);
+      cmd_vel.linear.x = std::min(cmd_vel.linear.x * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
     }
 
     if(cmd_vel.linear.y > 0)
     {
-      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold, 0.01);
+      cmd_vel.linear.y = std::max(cmd_vel.linear.y * delta_distance / delta_distance_threshold / scale_down_factor, 0.005);
     }
     else if(cmd_vel.linear.y < 0)
     {
-      cmd_vel.linear.y = std::min(cmd_vel.linear.y * delta_distance / delta_distance_threshold, -0.01);
+      cmd_vel.linear.y = std::min(cmd_vel.linear.y * delta_distance / delta_distance_threshold / scale_down_factor, -0.005);
     }
 
-    ROS_WARN("> x=%.2f y=%.2f ^ x=%.2f y=%.2f DS=%.2f OR=%.2f Vx=%.2f Vy=%.2f Vz=%.2f", 
+    ROS_WARN("> x=%.3f y=%.3f ^ x=%.3f y=%.3f DS=%.3f OR=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
               delta_distance, delta_orient,
@@ -666,7 +667,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
     if(start_point)
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
       start_point = false;
     }
 
@@ -674,12 +675,12 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (feasible)
     {
       // add via-point
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     }
     else
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
     }
     
     prev_idx = i;
@@ -1002,7 +1003,7 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
         goal_idx < (int)transformed_plan.size()-1 && // we do not reduce if the goal is already selected (because the orientation might change -> can introduce oscillations)
        (no_infeasible_plans_>0 || (current_time - time_last_infeasible_plan_).toSec() < cfg_.recovery.shrink_horizon_min_duration )) // keep short horizon for at least a few seconds
     {
-        ROS_INFO_COND(no_infeasible_plans_==1, "Activating reduced horizon backup mode for at least %.2f sec (infeasible trajectory detected).", cfg_.recovery.shrink_horizon_min_duration);
+        ROS_INFO_COND(no_infeasible_plans_==1, "Activating reduced horizon backup mode for at least %.3f sec (infeasible trajectory detected).", cfg_.recovery.shrink_horizon_min_duration);
 
 
         // Shorten horizon if requested

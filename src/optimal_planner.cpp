@@ -1296,18 +1296,18 @@ bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* co
   // std::vector<geometry_msgs::Point>
 
   double max_scale_factor = 1.0;
-  int factor_increment_step = 10;
+  int factor_increment_step = 100;
   double scale_factor = 0.0;
   std::vector<geometry_msgs::Point> scaled_footprint;
 
-  for(unsigned int j = 0; j < 10; j++)
+  for(unsigned int j = 0; j < factor_increment_step; j++)
   {
     scale_factor = max_scale_factor * j/factor_increment_step ;
     for(unsigned int i = 0; i < footprint_spec.size(); ++i)
     {
 
       double radius = sqrt(footprint_spec[i].x * footprint_spec[i].x + footprint_spec[i].y * footprint_spec[i].y);
-      double scaled_radius = radius + scale_factor * inflation_dist;
+      double scaled_radius = scale_factor * (radius + inflation_dist);
       geometry_msgs::Point new_pt;
 
       new_pt.x = footprint_spec[i].x * scaled_radius / radius;
