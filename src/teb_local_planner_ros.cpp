@@ -64,7 +64,7 @@ namespace teb_local_planner
 TebLocalPlannerROS::TebLocalPlannerROS() : costmap_ros_(NULL), tf_(NULL), costmap_model_(NULL),
                                            costmap_converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"),
                                            dynamic_recfg_(NULL), custom_via_points_active_(false), goal_reached_(false), no_infeasible_plans_(0),
-                                           last_preferred_rotdir_(RotType::none), my_via_point_adjustment_(false), my_via_point_distance_(0.0), initialized_(false)
+                                           last_preferred_rotdir_(RotType::none), initialized_(false)
 {
 }
 
@@ -212,6 +212,57 @@ bool TebLocalPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& 
   return true;
 }
 
+bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
+{
+
+  unsigned int period_record_size = 10;
+  double stdev_factor = 3.0;
+
+  double pose_x = pose.getOrigin().x();
+  double pose_y = pose.getOrigin().y();
+  double pose_z = pose.getOrigin().y();  
+ // double pose_yaw = pose.getRotation();
+
+  if (period_pose_x.size() < period_record_size)
+  {
+    period_pose_x.push_back(pose_x);
+    period_pose_y.push_back(pose_y);    
+    period_pose_z.push_back(pose_z);
+
+    return true;
+  }
+
+  // process position_x
+  double sum_x = std::accumulate(std::begin(period_pose_x), std::end(period_pose_x), 0.0);
+	double mean_x = sum_x / period_pose_x.size();
+ 	double accum_x  = 0.0;
+	std::for_each (std::begin(period_pose_x), std::end(period_pose_x), [&](const double d_x) {
+		accum_period_pose_x  += (d_x - mean_x)*(d_x - mean_x);
+	});
+ 	double stdev_x = sqrt(accum_x/(period_pose_x.size()-1));
+
+  double threshold_x = mean_x + stdev_factor * stdev_x;
+  if(fabs(pose_x) > threshold_x)
+  {
+    pose_x = pose_x > 0.0 ? threshold_x, -threshold_x;
+    pose.getOrigin().x() = pose_x;
+  }
+  period_pose_x[period_next] = pose_x;
+
+
+  btVector3 origin_new;
+  origin_new.setX(pose_x);
+  origin_new.setY(pose_y);
+  origin_new.setZ(pose_z);  
+
+  pose.setOrigin(origin_new);
+  
+  period_next++;
+  period_next %= period_pose_x.size();
+
+  return true;
+}
+
 
 bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 {
@@ -230,6 +281,13 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   // Get robot pose
   tf::Stamped<tf::Pose> robot_pose;
   costmap_ros_->getRobotPose(robot_pose);
+
+  //wangbin+:
+  tf::Stamped<tf::Pose> robot_pose_smoothed;
+  costmap_ros_->getRobotPose(robot_pose_smoothed);
+  robotPoseSmoother(robot_pose_smoothed);
+
+
   robot_pose_ = PoseSE2(robot_pose);
     
   // Get robot velocity
@@ -399,10 +457,13 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   //wangbin: add the control when robot near the goal
   double delta_distance_threshold = 0.5;
   double scale_down_factor = 1.0;
-if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
-  {
-    delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
-  }
+
+  if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
+    {
+      delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
+    }
+
+  raw_cmd_ = cmd_vel; // store the cmd_vel from TEB for publish
 
   if(delta_distance < delta_distance_threshold)
   {
@@ -433,11 +494,28 @@ if(cfg_.trajectory.global_plan_viapoint_sep > 0)
       cmd_vel.linear.y = std::min(cmd_vel.linear.y * dy/delta_distance_threshold/scale_down_factor, -0.01);
     }
 
-    ROS_WARN("> x=%.3f y=%.3f ^ x=%.3f y=%.3f DS=%.3f OR=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
+    if (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
+    {
+      cmd_vel.linear.y = 0.0;
+    }
+    else
+    {
+      if(cmd_vel.linear.y != 0.0)
+      {
+        cmd_vel.angular.z = 0.0;
+      }
+    }
+
+    ROS_WARN("Gx =%.3f Gy=%.3f x=%.3f, y=%.3f Dx=%.3f Dy=%.3f DS=%.3f Do=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
+              dx, dy,
               delta_distance, delta_orient,
               cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+  }
+  else
+  {
+    cmd_vel.linear.y = 0.0;
   }
 
   // convert rot-vel to steering angle if desired (carlike robot).
@@ -466,6 +544,13 @@ if(cfg_.trajectory.global_plan_viapoint_sep > 0)
   
   // Now visualize everything    
   planner_->visualize();
+
+  // wangbin+: add for reach goal
+  visualization_->publishGoal(global_goal);
+  visualization_->publishCurrentLocation(robot_pose);
+  visualization_->publishVelcmdRaw(raw_cmd_);
+  visualization_->publishVelcmdModified(cmd_vel);
+
   visualization_->publishObstacles(obstacles_);
   visualization_->publishViaPoints(via_points_);
   visualization_->publishGlobalPlan(global_plan_);

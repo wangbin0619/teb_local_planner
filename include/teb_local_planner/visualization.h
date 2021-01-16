@@ -103,6 +103,13 @@ public:
    */
   void initialize(ros::NodeHandle& nh, const TebConfig& cfg);
   
+  //wangbin+: add for reach goal
+  void publishGoal(const tf::Stamped<tf::Pose>& global_goal) const;
+  void publishCurrentLocation(const tf::Stamped<tf::Pose>& robot_pose) const;
+  void publishCurrentLocationSmoothed(const tf::Stamped<tf::Pose>& robot_pose) const;
+  void publishVelcmdRaw(const geometry_msgs::Twist& cmd) const;
+  void publishVelcmdModified(const geometry_msgs::Twist& cmd) const;
+
   
   /** @name Publish to topics */
   //@{
@@ -256,6 +263,13 @@ protected:
   ros::Publisher teb_marker_pub_; //!< Publisher for visualization markers
   ros::Publisher feedback_pub_; //!< Publisher for the feedback message for analysis and debug purposes
   
+  // wangbin+: add publisher for goal reach
+  ros::Publisher teb_goal_pub_; //!< Publisher for the goal
+  ros::Publisher teb_current_location_pub_; //!< Publisher for the current location
+  ros::Publisher teb_current_location_smoothed_pub_; //!< Publisher for the current location
+  ros::Publisher teb_vel_cmd_raw_pub_; //!< Publisher for the raw vel_cmd from TEB
+  ros::Publisher teb_vel_cmd_modified_pub_; //!< Publisher for the vel_cmd after modified to reach goal
+
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   
   bool initialized_; //!< Keeps track about the correct initialization of this class

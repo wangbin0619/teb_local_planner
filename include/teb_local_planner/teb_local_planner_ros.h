@@ -118,6 +118,9 @@ public:
     */
   bool setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan);
 
+  // wangbin+: add for Pose Smoother
+  bool robotPoseSmoother(tf::Stamped<tf::Pose>& pose);
+
   /**
     * @brief Given the current position, orientation, and velocity of the robot, compute velocity commands to send to the base
     * @param cmd_vel Will be filled with the velocity command to be passed to the robot base
@@ -391,9 +394,14 @@ private:
   RotType last_preferred_rotdir_; //!< Store recent preferred turning direction
   geometry_msgs::Twist last_cmd_; //!< Store the last control command generated in computeVelocityCommands()
   
-  // wangbin++: for the first via point adjustment
-  bool my_via_point_adjustment_;
-  double my_via_point_distance_;
+  // wangbin++: for the reach goal
+  geometry_msgs::Twist raw_cmd_;
+
+  // wangbin++: for pose smoother
+  std::vector<double> period_pose_x; 
+  std::vector<double> period_pose_y; 
+  std::vector<double> period_pose_z; 
+  unsigned int period_next;
 
   std::vector<geometry_msgs::Point> footprint_spec_; //!< Store the footprint of the robot 
   double robot_inscribed_radius_; //!< The radius of the inscribed circle of the robot (collision possible)

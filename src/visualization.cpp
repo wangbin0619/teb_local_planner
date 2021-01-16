@@ -66,11 +66,71 @@ void TebVisualization::initialize(ros::NodeHandle& nh, const TebConfig& cfg)
   teb_poses_pub_ = nh.advertise<geometry_msgs::PoseArray>("teb_poses", 100);
   teb_marker_pub_ = nh.advertise<visualization_msgs::Marker>("teb_markers", 1000);
   feedback_pub_ = nh.advertise<teb_local_planner::FeedbackMsg>("teb_feedback", 10);  
-  
+
+  //wangbin+: add for the reach goal debug
+  teb_goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("teb_goal",1);
+  teb_current_location_pub_ = nh.advertise<geometry_msgs::PoseStamped>("teb_current_location",1);
+  teb_current_location_smoothed_pub_ = nh.advertise<geometry_msgs::PoseStamped>("teb_current_location_smoothed",1);
+  teb_vel_cmd_raw_pub_ = nh.advertise<geometry_msgs::Twist>("teb_cmd_vel_raw",1);
+  teb_vel_cmd_modified_pub_ = nh.advertise<geometry_msgs::Twist>("teb_cmd_vel_modified",1);
+
   initialized_ = true; 
 }
 
+//wangbin+ Begin: add for the reach goal
+void TebVisualization::publishGoal(const tf::Stamped<tf::Pose>& global_goal) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  geometry_msgs::PoseStamped target_goal;
 
+  tf::poseStampedTFToMsg(global_goal, target_goal);
+
+  teb_goal_pub_.publish(target_goal);
+}
+
+void TebVisualization::publishCurrentLocation(const tf::Stamped<tf::Pose>& robot_pose) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  geometry_msgs::PoseStamped current_pose;
+
+  tf::poseStampedTFToMsg(robot_pose, current_pose);
+
+  teb_current_location_pub_.publish(current_pose);
+}
+
+void TebVisualization::publishCurrentLocationSmoothed(const tf::Stamped<tf::Pose>& robot_pose) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  geometry_msgs::PoseStamped current_pose;
+
+  tf::poseStampedTFToMsg(robot_pose, current_pose);
+
+  teb_current_location_smoothed_pub_.publish(current_pose);
+}
+
+void TebVisualization::publishVelcmdRaw(const geometry_msgs::Twist& cmd) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  teb_vel_cmd_raw_pub_.publish(cmd);
+}
+
+void TebVisualization::publishVelcmdModified(const geometry_msgs::Twist& cmd) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  teb_vel_cmd_modified_pub_.publish(cmd);
+}
+
+//wangbin+ End: add for the reach goal
 
 void TebVisualization::publishGlobalPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan) const
 {
