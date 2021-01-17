@@ -237,26 +237,25 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 	double mean_x = sum_x / period_pose_x.size();
  	double accum_x  = 0.0;
 	std::for_each (std::begin(period_pose_x), std::end(period_pose_x), [&](const double d_x) {
-		accum_period_pose_x  += (d_x - mean_x)*(d_x - mean_x);
+		accum_x  += (d_x - mean_x)*(d_x - mean_x);
 	});
  	double stdev_x = sqrt(accum_x/(period_pose_x.size()-1));
 
   double threshold_x = mean_x + stdev_factor * stdev_x;
   if(fabs(pose_x) > threshold_x)
   {
-    pose_x = pose_x > 0.0 ? threshold_x, -threshold_x;
-    pose.getOrigin().x() = pose_x;
+    pose_x = pose_x > 0.0 ? threshold_x: -threshold_x;
   }
   period_pose_x[period_next] = pose_x;
 
-
+/*
   btVector3 origin_new;
   origin_new.setX(pose_x);
   origin_new.setY(pose_y);
   origin_new.setZ(pose_z);  
 
   pose.setOrigin(origin_new);
-  
+*/  
   period_next++;
   period_next %= period_pose_x.size();
 
@@ -327,18 +326,19 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   global_goal.setData( tf_plan_to_global * global_goal );
   double dx = global_goal.getOrigin().getX() - robot_pose_.x();
   double dy = global_goal.getOrigin().getY() - robot_pose_.y();
+  double d_angular_z = g2o::normalize_theta( tf::getYaw(global_goal.getRotation()) - robot_pose_.theta());
 
-  double delta_orient = fabs(g2o::normalize_theta( tf::getYaw(global_goal.getRotation()) - robot_pose_.theta()));
-  // wangbin
+  double delta_orient = fabs(d_angular_z);
   double delta_distance = fabs(std::sqrt(dx*dx+dy*dy));
 
   if( (delta_distance < cfg_.goal_tolerance.xy_goal_tolerance)
       && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
       && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
-    ROS_WARN("> x=%.3f y=%.3f ^ x=%.3f y=%.3f DS=%.3f OR=%.3f == Goal Reached == ", 
+    ROS_WARN("Gx =%.3f Gy=%.3f x=%.3f, y=%.3f Dx=%.3f Dy=%.3f DS=%.3f Do=%.3f == Goal Reached ==", 
               global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
               robot_pose_.x(), robot_pose_.y(), 
+              dx, dy,
               delta_distance, delta_orient);
 
     goal_reached_ = true;
@@ -455,55 +455,58 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
                    cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
 
   //wangbin: add the control when robot near the goal
-  double delta_distance_threshold = 0.5;
+  double delta_distance_threshold = 0.2;
+  double delta_angular_threshold = 3.14;
   double scale_down_factor = 1.0;
 
+  double vel_linear_xy_max = 0.1; // m/s
+  double vel_linear_xy_min = 0.01;
+  double vel_angular_z_max = 0.05; // 0.05 / 3.14 * 180 = 2.86 degree/s
+  double vel_angular_z_min = 0.01; // 0.57 degree/s
+
   if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
-    {
-      delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
-    }
+  {
+    delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
+  }
 
   raw_cmd_ = cmd_vel; // store the cmd_vel from TEB for publish
 
+  // wangbin+: start to take over control from TEB
   if(delta_distance < delta_distance_threshold)
   {
-    if(cmd_vel.angular.z > 0 )
+    // move in X and Y axis
+    if(fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance)
     {
-      cmd_vel.angular.z = std::max(cmd_vel.angular.z * delta_orient/delta_distance_threshold/scale_down_factor, 0.01);
+      cmd_vel.linear.x = 0.0;
     }
-    else if (cmd_vel.angular.z < 0)
+    else
     {
-      cmd_vel.angular.z = std::min(cmd_vel.angular.z * delta_orient/delta_distance_threshold/scale_down_factor, -0.01);
-    }
-
-    if(cmd_vel.linear.x > 0)
-    {
-      cmd_vel.linear.x = std::max(cmd_vel.linear.x * dx/delta_distance_threshold/scale_down_factor, 0.01);
-    }
-    else if(cmd_vel.linear.x < 0)
-    {
-      cmd_vel.linear.x = std::min(cmd_vel.linear.x * dx/delta_distance_threshold/scale_down_factor, -0.01);
+      double target_vel_linear_x = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dx)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+      cmd_vel.linear.y = fabs(dx)/dx * target_vel_linear_x;
     }
 
-    if(cmd_vel.linear.y > 0)
-    {
-      cmd_vel.linear.y = std::max(cmd_vel.linear.y * dy/delta_distance_threshold/scale_down_factor, 0.01);
-    }
-    else if(cmd_vel.linear.y < 0)
-    {
-      cmd_vel.linear.y = std::min(cmd_vel.linear.y * dy/delta_distance_threshold/scale_down_factor, -0.01);
-    }
-
-    if (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
+    if(fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
     {
       cmd_vel.linear.y = 0.0;
     }
     else
     {
-      if(cmd_vel.linear.y != 0.0)
-      {
-        cmd_vel.angular.z = 0.0;
-      }
+      double target_vel_linear_y = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dy)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+      cmd_vel.linear.y = fabs(dy)/dy * target_vel_linear_y;
+    }
+
+    if( (fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance) && 
+        (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance) &&
+        (fabs(d_angular_z) < cfg_.goal_tolerance.xy_goal_tolerance) 
+      )
+    {
+      // rotation as the last step
+      double target_vel_angular_z = std::max(std::min(vel_angular_z_max, vel_angular_z_max*fabs(d_angular_z)/delta_angular_threshold/scale_down_factor), vel_angular_z_min);
+      cmd_vel.linear.y = fabs(d_angular_z)/d_angular_z * target_vel_angular_z;
+    }
+    else
+    {
+      cmd_vel.angular.z = 0.0;
     }
 
     ROS_WARN("Gx =%.3f Gy=%.3f x=%.3f, y=%.3f Dx=%.3f Dy=%.3f DS=%.3f Do=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
