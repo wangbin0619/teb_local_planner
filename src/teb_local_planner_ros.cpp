@@ -64,7 +64,7 @@ namespace teb_local_planner
 TebLocalPlannerROS::TebLocalPlannerROS() : costmap_ros_(NULL), tf_(NULL), costmap_model_(NULL),
                                            costmap_converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"),
                                            dynamic_recfg_(NULL), custom_via_points_active_(false), goal_reached_(false), no_infeasible_plans_(0),
-                                           last_preferred_rotdir_(RotType::none), initialized_(false)
+                                           last_preferred_rotdir_(RotType::none), period_next(0), initialized_(false)
 {
 }
 
@@ -215,7 +215,7 @@ bool TebLocalPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& 
 bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 {
 
-  unsigned int period_record_size = 10;
+  unsigned int period_record_size = 20; // 2s based on 10HZ update rate
   double stdev_factor = 3.0;
 
   double pose_linear_x = pose.getOrigin().x();
@@ -241,12 +241,21 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 	});
  	double stdev_x = sqrt(accum_x/(period_pose_linear_x.size()-1));
 
-  double threshold_x = mean_x + stdev_factor * stdev_x;
-  if(fabs(pose_linear_x) > threshold_x)
+  double threshold_x_max = mean_x + stdev_factor * stdev_x;
+  double threshold_x_min = mean_x - stdev_factor * stdev_x;
+  if( pose_linear_x > threshold_x_max )
   {
-    pose_linear_x = pose_linear_x > 0.0 ? threshold_x: -threshold_x;
+    pose_linear_x = threshold_x_max;
   }
+  if( pose_linear_x < threshold_x_min )
+  {
+      pose_linear_x = threshold_x_min;   
+  }  
+
   period_pose_linear_x[period_next] = pose_linear_x;
+
+  ROS_WARN("Pose Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f threshold_x_max=%.2f threshold_x_min=%.2f pose_x_in=%.2f pose_x_out=%.2f", 
+            sum_x, mean_x, stdev_x, threshold_x_max, threshold_x_min, pose.getOrigin().x(), pose_linear_x);
 
   // process position_linear_y
   double sum_y = std::accumulate(std::begin(period_pose_linear_y), std::end(period_pose_linear_y), 0.0);
@@ -257,12 +266,21 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 	});
  	double stdev_y = sqrt(accum_y/(period_pose_linear_y.size()-1));
 
-  double threshold_y = mean_y + stdev_factor * stdev_y;
-  if(fabs(pose_linear_y) > threshold_y)
+  double threshold_y_max = mean_y + stdev_factor * stdev_y;
+  double threshold_y_min = mean_y - stdev_factor * stdev_y;
+  if( pose_linear_y > threshold_y_max )
   {
-    pose_linear_y = pose_linear_y > 0.0 ? threshold_y: -threshold_y;
+    pose_linear_y = threshold_y_max;
   }
+  if( pose_linear_y < threshold_y_min )
+  {
+      pose_linear_y = threshold_y_min;   
+  }  
+
   period_pose_linear_y[period_next] = pose_linear_y;
+
+  ROS_WARN("Pose Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f threshold_y_max=%.2f threshold_y_min=%.2f pose_y_in=%.2f pose_y_out=%.2f", 
+            sum_y, mean_y, stdev_y, threshold_y_max, threshold_y_min, pose.getOrigin().y(), pose_linear_y);
 
    // process position_angular z
   double sum_z = std::accumulate(std::begin(period_pose_angular_z), std::end(period_pose_angular_z), 0.0);
@@ -273,12 +291,22 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 	});
  	double stdev_z = sqrt(accum_z/(period_pose_angular_z.size()-1));
 
-  double threshold_z = mean_z + stdev_factor * stdev_z;
-  if(fabs(pose_angular_z) > threshold_z)
+  double threshold_z_max = mean_z + stdev_factor * stdev_z;
+  double threshold_z_min = mean_z - stdev_factor * stdev_z;
+
+  if(pose_angular_z > threshold_z_max)
   {
-    pose_angular_z = pose_angular_z > 0.0 ? threshold_z: -threshold_z;
+    pose_angular_z = threshold_z_max;
   }
+  if(pose_angular_z < threshold_z_min)
+  {
+    pose_angular_z = threshold_z_min;
+  }
+
   period_pose_angular_z[period_next] = pose_angular_z; 
+
+  ROS_WARN("Pose Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f threshold_z_max=%.2f threshold_z_min=%.2f pose_z_in=%.2f pose_z_out=%.2f", 
+            sum_z, mean_z, stdev_z, threshold_z_max, threshold_z_min, tf::getYaw(pose.getRotation()), pose_angular_z);
 
   // update the pose after smoother
   tf::Vector3 origin_new(pose_linear_x, pose_linear_y, 0);
