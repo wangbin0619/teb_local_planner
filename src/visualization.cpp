@@ -86,6 +86,8 @@ void TebVisualization::publishGoal(const tf::Stamped<tf::Pose>& global_goal) con
   geometry_msgs::PoseStamped target_goal;
 
   tf::poseStampedTFToMsg(global_goal, target_goal);
+  target_goal.header.frame_id = cfg_->map_frame;
+  target_goal.header.stamp = ros::Time::now();
 
   teb_goal_pub_.publish(target_goal);
 }

@@ -218,46 +218,78 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   unsigned int period_record_size = 10;
   double stdev_factor = 3.0;
 
-  double pose_x = pose.getOrigin().x();
-  double pose_y = pose.getOrigin().y();
-  double pose_z = pose.getOrigin().y();  
+  double pose_linear_x = pose.getOrigin().x();
+  double pose_linear_y = pose.getOrigin().y();
+  double pose_angular_z = tf::getYaw(pose.getRotation());  
  // double pose_yaw = pose.getRotation();
 
-  if (period_pose_x.size() < period_record_size)
+  if (period_pose_linear_x.size() < period_record_size)
   {
-    period_pose_x.push_back(pose_x);
-    period_pose_y.push_back(pose_y);    
-    period_pose_z.push_back(pose_z);
+    period_pose_linear_x.push_back(pose_linear_x);
+    period_pose_linear_y.push_back(pose_linear_y);    
+    period_pose_angular_z.push_back(pose_angular_z);
 
     return true;
   }
 
-  // process position_x
-  double sum_x = std::accumulate(std::begin(period_pose_x), std::end(period_pose_x), 0.0);
-	double mean_x = sum_x / period_pose_x.size();
+  // process position_linear_x
+  double sum_x = std::accumulate(std::begin(period_pose_linear_x), std::end(period_pose_linear_x), 0.0);
+	double mean_x = sum_x / period_pose_linear_x.size();
  	double accum_x  = 0.0;
-	std::for_each (std::begin(period_pose_x), std::end(period_pose_x), [&](const double d_x) {
+	std::for_each (std::begin(period_pose_linear_x), std::end(period_pose_linear_x), [&](const double d_x) {
 		accum_x  += (d_x - mean_x)*(d_x - mean_x);
 	});
- 	double stdev_x = sqrt(accum_x/(period_pose_x.size()-1));
+ 	double stdev_x = sqrt(accum_x/(period_pose_linear_x.size()-1));
 
   double threshold_x = mean_x + stdev_factor * stdev_x;
-  if(fabs(pose_x) > threshold_x)
+  if(fabs(pose_linear_x) > threshold_x)
   {
-    pose_x = pose_x > 0.0 ? threshold_x: -threshold_x;
+    pose_linear_x = pose_linear_x > 0.0 ? threshold_x: -threshold_x;
   }
-  period_pose_x[period_next] = pose_x;
+  period_pose_linear_x[period_next] = pose_linear_x;
 
-/*
-  btVector3 origin_new;
-  origin_new.setX(pose_x);
-  origin_new.setY(pose_y);
-  origin_new.setZ(pose_z);  
+  // process position_linear_y
+  double sum_y = std::accumulate(std::begin(period_pose_linear_y), std::end(period_pose_linear_y), 0.0);
+	double mean_y = sum_y / period_pose_linear_y.size();
+ 	double accum_y  = 0.0;
+	std::for_each (std::begin(period_pose_linear_y), std::end(period_pose_linear_y), [&](const double d_y) {
+		accum_y  += (d_y - mean_y)*(d_y - mean_y);
+	});
+ 	double stdev_y = sqrt(accum_y/(period_pose_linear_y.size()-1));
 
+  double threshold_y = mean_y + stdev_factor * stdev_y;
+  if(fabs(pose_linear_y) > threshold_y)
+  {
+    pose_linear_y = pose_linear_y > 0.0 ? threshold_y: -threshold_y;
+  }
+  period_pose_linear_y[period_next] = pose_linear_y;
+
+   // process position_angular z
+  double sum_z = std::accumulate(std::begin(period_pose_angular_z), std::end(period_pose_angular_z), 0.0);
+	double mean_z = sum_z / period_pose_angular_z.size();
+ 	double accum_z  = 0.0;
+	std::for_each (std::begin(period_pose_angular_z), std::end(period_pose_angular_z), [&](const double d_z) {
+		accum_z  += (d_z - mean_z)*(d_z - mean_z);
+	});
+ 	double stdev_z = sqrt(accum_z/(period_pose_angular_z.size()-1));
+
+  double threshold_z = mean_z + stdev_factor * stdev_z;
+  if(fabs(pose_angular_z) > threshold_z)
+  {
+    pose_angular_z = pose_angular_z > 0.0 ? threshold_z: -threshold_z;
+  }
+  period_pose_angular_z[period_next] = pose_angular_z; 
+
+  // update the pose after smoother
+  tf::Vector3 origin_new(pose_linear_x, pose_linear_y, 0);
   pose.setOrigin(origin_new);
-*/  
+
+  tf::Matrix3x3 matrix_new;
+  matrix_new.setRotation(tf::createQuaternionFromYaw(pose_angular_z));
+  pose.setBasis(matrix_new);
+
   period_next++;
-  period_next %= period_pose_x.size();
+  period_next %= period_pose_linear_x.size();
 
   return true;
 }
@@ -285,7 +317,6 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   tf::Stamped<tf::Pose> robot_pose_smoothed;
   costmap_ros_->getRobotPose(robot_pose_smoothed);
   robotPoseSmoother(robot_pose_smoothed);
-
 
   robot_pose_ = PoseSE2(robot_pose);
     
@@ -335,11 +366,10 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       && (delta_orient < cfg_.goal_tolerance.yaw_goal_tolerance)
       && (!cfg_.goal_tolerance.complete_global_plan || (via_points_.size() == 0)))
   {
-    ROS_WARN("Gx =%.3f Gy=%.3f x=%.3f, y=%.3f Dx=%.3f Dy=%.3f DS=%.3f Do=%.3f == Goal Reached ==", 
-              global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
-              robot_pose_.x(), robot_pose_.y(), 
-              dx, dy,
-              delta_distance, delta_orient);
+      ROS_WARN("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) == Goal Reached ==", 
+                robot_goal_.x(),robot_goal_.y(),robot_goal_.theta(),
+                robot_pose_.x(),robot_pose_.y(),robot_pose_.theta(),
+                dx, dy, delta_distance, delta_orient);
 
     goal_reached_ = true;
     return true;
@@ -454,71 +484,100 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   saturateVelocity(cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z, cfg_.robot.max_vel_x, cfg_.robot.max_vel_y,
                    cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
 
+
   //wangbin: add the control when robot near the goal
-  double delta_distance_threshold = 0.2;
-  double delta_angular_threshold = 3.14;
-  double scale_down_factor = 1.0;
 
-  double vel_linear_xy_max = 0.1; // m/s
-  double vel_linear_xy_min = 0.01;
-  double vel_angular_z_max = 0.05; // 0.05 / 3.14 * 180 = 2.86 degree/s
-  double vel_angular_z_min = 0.01; // 0.57 degree/s
+  // cfg_.robot.acc_lim_y used as temporary flag to turn on this capability
+  // however, when set to 0.0 it will be 0.10 in runing code, not fingure out why even other larger value works
 
-  if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
+  // for the DaLu like robot which can only accept x+y, x+ angular z, x, andular z axis control
+  // we will set: acc_lim_y as 0.2 and  max_vel_y as 0.0
+
+  // for the time-diff robot which can only work in x +  angular z axis control
+  // we will set: acc_lim_y as 0.0 and  max_vel_y as 0.0 
+
+  if(cfg_.robot.acc_lim_y > 0.1)
   {
-    delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
-  }
+    double delta_distance_threshold = 0.2;
+    double delta_angular_threshold = 3.14;
+    double scale_down_factor = 1.0;
 
-  raw_cmd_ = cmd_vel; // store the cmd_vel from TEB for publish
+    double vel_linear_xy_max = 0.01; // m/s
+    double vel_linear_xy_min = 0.01;
+    double vel_angular_z_max = 0.2; // 0.05 / 3.14 * 180 = 2.86 degree/s
+    double vel_angular_z_min = 0.01; // 0.57 degree/s
 
-  // wangbin+: start to take over control from TEB
-  if(delta_distance < delta_distance_threshold)
-  {
-    // move in X and Y axis
-    if(fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance)
+    if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
     {
-      cmd_vel.linear.x = 0.0;
-    }
-    else
-    {
-      double target_vel_linear_x = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dx)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
-      cmd_vel.linear.y = fabs(dx)/dx * target_vel_linear_x;
+      delta_distance_threshold = cfg_.trajectory.global_plan_viapoint_sep;
     }
 
-    if(fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
-    {
-      cmd_vel.linear.y = 0.0;
-    }
-    else
-    {
-      double target_vel_linear_y = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dy)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
-      cmd_vel.linear.y = fabs(dy)/dy * target_vel_linear_y;
-    }
+    raw_cmd_ = cmd_vel; // store the cmd_vel from TEB for publish
 
-    if( (fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance) && 
-        (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance) &&
-        (fabs(d_angular_z) < cfg_.goal_tolerance.xy_goal_tolerance) 
-      )
+    // wangbin+: start to take over control from TEB
+    if(delta_distance < delta_distance_threshold)
     {
-      // rotation as the last step
-      double target_vel_angular_z = std::max(std::min(vel_angular_z_max, vel_angular_z_max*fabs(d_angular_z)/delta_angular_threshold/scale_down_factor), vel_angular_z_min);
-      cmd_vel.linear.y = fabs(d_angular_z)/d_angular_z * target_vel_angular_z;
-    }
-    else
-    {
-      cmd_vel.angular.z = 0.0;
-    }
 
-    ROS_WARN("Gx =%.3f Gy=%.3f x=%.3f, y=%.3f Dx=%.3f Dy=%.3f DS=%.3f Do=%.3f Vx=%.3f Vy=%.3f Vz=%.3f", 
-              global_goal.getOrigin().getX(), global_goal.getOrigin().getY(), 
-              robot_pose_.x(), robot_pose_.y(), 
-              dx, dy,
-              delta_distance, delta_orient,
-              cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
-  }
-  else
-  {
-    cmd_vel.linear.y = 0.0;
+      // transform pose 2 into the current robot frame (pose1)
+      // for velocities only the rotation of the direction vector is necessary.
+      // (map->pose1-frame: inverse 2d rotation matrix)
+      Eigen::Vector2d deltaS = robot_goal_.position() - robot_pose_.position();
+
+      double cos_theta1 = std::cos(robot_pose_.theta());
+      double sin_theta1 = std::sin(robot_pose_.theta());
+
+      // robot_dx and dy are in robot coordination
+      double robot_dx =  cos_theta1*deltaS.x() + sin_theta1*deltaS.y();
+      double robot_dy = -sin_theta1*deltaS.x() + cos_theta1*deltaS.y();
+      double robot_orientdiff = g2o::normalize_theta(robot_goal_.theta() - robot_pose_.theta());
+
+      // move in X and Y axis
+      // dx is in MAP coordination
+      if(fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance)
+      {
+        cmd_vel.linear.x = 0.0;
+      }
+      else
+      {
+        double target_vel_linear_x = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dx)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+        //cmd_vel.linear.x = fabs(dx)/dx * target_vel_linear_x;
+        cmd_vel.linear.x = fabs(robot_dx)/robot_dx * target_vel_linear_x;
+      }
+
+      if(fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
+      {
+        cmd_vel.linear.y = 0.0;
+      }
+      else
+      {
+        double target_vel_linear_y = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dy)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+        //cmd_vel.linear.y = fabs(dy)/dy * target_vel_linear_y;
+        cmd_vel.linear.y = fabs(robot_dy)/robot_dy * target_vel_linear_y;
+      }
+      
+      if( (fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance) && 
+          (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance) &&
+          (fabs(d_angular_z) > cfg_.goal_tolerance.xy_goal_tolerance) 
+        )
+      {
+        // rotation as the last step
+        double target_vel_angular_z = std::max(std::min(vel_angular_z_max, vel_angular_z_max*fabs(d_angular_z)/delta_angular_threshold/scale_down_factor), vel_angular_z_min);
+        //cmd_vel.angular.z = fabs(d_angular_z)/d_angular_z * target_vel_angular_z;
+        cmd_vel.angular.z = fabs(robot_orientdiff)/robot_orientdiff * target_vel_angular_z;
+      }
+      else
+      {
+        cmd_vel.angular.z = 0.0;
+      }
+
+      ROS_WARN("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) Vel(%.2f %.2f %.2f) (vel_y=%.2f acc_y=%.2f)", 
+                robot_goal_.x(),robot_goal_.y(),robot_goal_.theta(),
+                robot_pose_.x(),robot_pose_.y(),robot_pose_.theta(),
+                dx, dy,
+                delta_distance, delta_orient,
+                cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z, 
+                cfg_.robot.max_vel_y, cfg_.robot.acc_lim_y);
+    }
   }
 
   // convert rot-vel to steering angle if desired (carlike robot).
@@ -548,9 +607,11 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   // Now visualize everything    
   planner_->visualize();
 
-  // wangbin+: add for reach goal
+  // wangbin+: add for reaching goal
   visualization_->publishGoal(global_goal);
   visualization_->publishCurrentLocation(robot_pose);
+  visualization_->publishCurrentLocationSmoothed(robot_pose_smoothed);
+
   visualization_->publishVelcmdRaw(raw_cmd_);
   visualization_->publishVelcmdModified(cmd_vel);
 
@@ -755,7 +816,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
     if(start_point)
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
       start_point = false;
     }
 
@@ -763,12 +824,12 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (feasible)
     {
       // add via-point
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     }
     else
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.3f, y=%.3f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
     }
     
     prev_idx = i;
@@ -1091,7 +1152,7 @@ void TebLocalPlannerROS::configureBackupModes(std::vector<geometry_msgs::PoseSta
         goal_idx < (int)transformed_plan.size()-1 && // we do not reduce if the goal is already selected (because the orientation might change -> can introduce oscillations)
        (no_infeasible_plans_>0 || (current_time - time_last_infeasible_plan_).toSec() < cfg_.recovery.shrink_horizon_min_duration )) // keep short horizon for at least a few seconds
     {
-        ROS_INFO_COND(no_infeasible_plans_==1, "Activating reduced horizon backup mode for at least %.3f sec (infeasible trajectory detected).", cfg_.recovery.shrink_horizon_min_duration);
+        ROS_INFO_COND(no_infeasible_plans_==1, "Activating reduced horizon backup mode for at least %.2f sec (infeasible trajectory detected).", cfg_.recovery.shrink_horizon_min_duration);
 
 
         // Shorten horizon if requested

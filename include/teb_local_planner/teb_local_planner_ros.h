@@ -398,9 +398,9 @@ private:
   geometry_msgs::Twist raw_cmd_;
 
   // wangbin++: for pose smoother
-  std::vector<double> period_pose_x; 
-  std::vector<double> period_pose_y; 
-  std::vector<double> period_pose_z; 
+  std::vector<double> period_pose_linear_x; 
+  std::vector<double> period_pose_linear_y; 
+  std::vector<double> period_pose_angular_z; 
   unsigned int period_next;
 
   std::vector<geometry_msgs::Point> footprint_spec_; //!< Store the footprint of the robot 
