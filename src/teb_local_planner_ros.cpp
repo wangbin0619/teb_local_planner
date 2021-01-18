@@ -254,7 +254,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_x[period_next] = pose_linear_x;
 
-  ROS_WARN("Pose Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f threshold_x_max=%.2f threshold_x_min=%.2f pose_x_in=%.2f pose_x_out=%.2f", 
+  ROS_WARN("Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f x_max=%.2f x_min=%.2f x_in=%.2f x_out=%.2f", 
             sum_x, mean_x, stdev_x, threshold_x_max, threshold_x_min, pose.getOrigin().x(), pose_linear_x);
 
   // process position_linear_y
@@ -279,7 +279,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_y[period_next] = pose_linear_y;
 
-  ROS_WARN("Pose Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f threshold_y_max=%.2f threshold_y_min=%.2f pose_y_in=%.2f pose_y_out=%.2f", 
+  ROS_WARN("Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f y_max=%.2f y_min=%.2f y_in=%.2f y_out=%.2f", 
             sum_y, mean_y, stdev_y, threshold_y_max, threshold_y_min, pose.getOrigin().y(), pose_linear_y);
 
    // process position_angular z
@@ -305,7 +305,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_angular_z[period_next] = pose_angular_z; 
 
-  ROS_WARN("Pose Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f threshold_z_max=%.2f threshold_z_min=%.2f pose_z_in=%.2f pose_z_out=%.2f", 
+  ROS_WARN("Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f z_max=%.2f z_min=%.2f z_in=%.2f z_out=%.2f", 
             sum_z, mean_z, stdev_z, threshold_z_max, threshold_z_min, tf::getYaw(pose.getRotation()), pose_angular_z);
 
   // update the pose after smoother
