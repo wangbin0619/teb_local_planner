@@ -254,8 +254,8 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_x[period_next] = pose_linear_x;
 
-  ROS_WARN("Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f x_max=%.2f x_min=%.2f x_in=%.2f x_out=%.2f", 
-            sum_x, mean_x, stdev_x, threshold_x_max, threshold_x_min, pose.getOrigin().x(), pose_linear_x);
+  // ROS_WARN("Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f x_max=%.2f x_min=%.2f x_in=%.2f x_out=%.2f", 
+  //          sum_x, mean_x, stdev_x, threshold_x_max, threshold_x_min, pose.getOrigin().x(), pose_linear_x);
 
   // process position_linear_y
   double sum_y = std::accumulate(std::begin(period_pose_linear_y), std::end(period_pose_linear_y), 0.0);
@@ -279,8 +279,8 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_y[period_next] = pose_linear_y;
 
-  ROS_WARN("Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f y_max=%.2f y_min=%.2f y_in=%.2f y_out=%.2f", 
-            sum_y, mean_y, stdev_y, threshold_y_max, threshold_y_min, pose.getOrigin().y(), pose_linear_y);
+  // ROS_WARN("Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f y_max=%.2f y_min=%.2f y_in=%.2f y_out=%.2f", 
+  //          sum_y, mean_y, stdev_y, threshold_y_max, threshold_y_min, pose.getOrigin().y(), pose_linear_y);
 
    // process position_angular z
   double sum_z = std::accumulate(std::begin(period_pose_angular_z), std::end(period_pose_angular_z), 0.0);
@@ -305,8 +305,8 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_angular_z[period_next] = pose_angular_z; 
 
-  ROS_WARN("Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f z_max=%.2f z_min=%.2f z_in=%.2f z_out=%.2f", 
-            sum_z, mean_z, stdev_z, threshold_z_max, threshold_z_min, tf::getYaw(pose.getRotation()), pose_angular_z);
+  // ROS_WARN("Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f z_max=%.2f z_min=%.2f z_in=%.2f z_out=%.2f", 
+  //           sum_z, mean_z, stdev_z, threshold_z_max, threshold_z_min, tf::getYaw(pose.getRotation()), pose_angular_z);
 
   // update the pose after smoother
   tf::Vector3 origin_new(pose_linear_x, pose_linear_y, 0);
@@ -342,9 +342,10 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   costmap_ros_->getRobotPose(robot_pose);
 
   //wangbin+:
-  tf::Stamped<tf::Pose> robot_pose_smoothed;
-  costmap_ros_->getRobotPose(robot_pose_smoothed);
-  robotPoseSmoother(robot_pose_smoothed);
+  tf::Stamped<tf::Pose> robot_pose_raw;
+  costmap_ros_->getRobotPose(robot_pose_raw);
+
+  robotPoseSmoother(robot_pose);
 
   robot_pose_ = PoseSE2(robot_pose);
     
@@ -530,9 +531,9 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     double delta_angular_threshold = 3.14;
     double scale_down_factor = 1.0;
 
-    double vel_linear_xy_max = 0.01; // m/s
+    double vel_linear_xy_max = 0.01; // cfg_.robot.max_vel_x; // m/s
     double vel_linear_xy_min = 0.01;
-    double vel_angular_z_max = 0.2; // 0.05 / 3.14 * 180 = 2.86 degree/s
+    double vel_angular_z_max = cfg_.robot.max_vel_theta; // 0.05 / 3.14 * 180 = 2.86 degree/s
     double vel_angular_z_min = 0.01; // 0.57 degree/s
 
     if(cfg_.trajectory.global_plan_viapoint_sep > 0) 
@@ -637,8 +638,8 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 
   // wangbin+: add for reaching goal
   visualization_->publishGoal(global_goal);
-  visualization_->publishCurrentLocation(robot_pose);
-  visualization_->publishCurrentLocationSmoothed(robot_pose_smoothed);
+  visualization_->publishCurrentLocation(robot_pose_raw);
+  visualization_->publishCurrentLocationSmoothed(robot_pose);
 
   visualization_->publishVelcmdRaw(raw_cmd_);
   visualization_->publishVelcmdModified(cmd_vel);
