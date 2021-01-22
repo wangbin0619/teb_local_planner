@@ -247,12 +247,13 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   // process position_linear_x
   double sum_x = std::accumulate(std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), 0.0);
 	double mean_x = sum_x / period_pose_linear_x_.size();
+  /*
  	double accum_x  = 0.0;
 	std::for_each (std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), [&](const double d_x) {
 		accum_x  += (d_x - mean_x)*(d_x - mean_x);
 	});
  	double stdev_x = sqrt(accum_x/(period_pose_linear_x_.size()-1));
-
+  */
   double threshold_x = diff_time * \
                       (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
                       (cfg_.robot.acc_lim_x * diff_time));
@@ -280,12 +281,13 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   // process position_linear_y
   double sum_y = std::accumulate(std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), 0.0);
 	double mean_y = sum_y / period_pose_linear_y_.size();
+  /*
  	double accum_y  = 0.0;
 	std::for_each (std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), [&](const double d_y) {
 		accum_y  += (d_y - mean_y)*(d_y - mean_y);
 	});
  	double stdev_y = sqrt(accum_y/(period_pose_linear_y_.size()-1));
-
+  */
   // use linear x data for linear y smooth
   double threshold_y = diff_time * \
                       (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
@@ -311,15 +313,17 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
             diff_time,
             pose.getOrigin().y(), pose_linear_y);
 
-   // process position_angular z
+   // Skip process position_angular z since there is -3.14 to 3.14 use case can not be handled
+  /*
   double sum_z = std::accumulate(std::begin(period_pose_angular_z_), std::end(period_pose_angular_z_), 0.0);
 	double mean_z = sum_z / period_pose_angular_z_.size();
  	double accum_z  = 0.0;
-	std::for_each (std::begin(period_pose_angular_z_), std::end(period_pose_angular_z_), [&](const double d_z) {
+	
+  std::for_each (std::begin(period_pose_angular_z_), std::end(period_pose_angular_z_), [&](const double d_z) {
 		accum_z  += (d_z - mean_z)*(d_z - mean_z);
 	});
  	double stdev_z = sqrt(accum_z/(period_pose_angular_z_.size()-1));
-
+  
   double threshold_z = diff_time * \
                       (std::max(fabs(cfg_.robot.max_vel_theta), fabs(robot_vel_.angular.z)) \
                       + (cfg_.robot.acc_lim_theta * diff_time));
@@ -343,7 +347,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
             (fabs(mean_z) + (fabs(robot_vel_.angular.z) + (cfg_.robot.acc_lim_theta*diff_time)) * diff_time), 
             diff_time,
             tf::getYaw(pose.getRotation()), pose_angular_z);
-
+  */
   // update the pose after smoother
   tf::Vector3 origin_new(pose_linear_x, pose_linear_y, 0);
   pose.setOrigin(origin_new);
