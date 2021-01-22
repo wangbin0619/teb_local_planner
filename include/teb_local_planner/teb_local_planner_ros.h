@@ -396,12 +396,14 @@ private:
   
   // wangbin++: for the reach goal
   geometry_msgs::Twist raw_cmd_;
+  bool goal_reach_mode_xy_; // true: xy, false: angular
 
   // wangbin++: for pose smoother
-  std::vector<double> period_pose_linear_x; 
-  std::vector<double> period_pose_linear_y; 
-  std::vector<double> period_pose_angular_z; 
-  unsigned int period_next;
+  std::vector<double> period_pose_linear_x_; 
+  std::vector<double> period_pose_linear_y_; 
+  std::vector<double> period_pose_angular_z_; 
+  unsigned int period_next_;
+  ros::Time last_smooth_time_;
 
   std::vector<geometry_msgs::Point> footprint_spec_; //!< Store the footprint of the robot 
   double robot_inscribed_radius_; //!< The radius of the inscribed circle of the robot (collision possible)

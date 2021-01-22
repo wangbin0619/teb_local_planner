@@ -64,7 +64,7 @@ namespace teb_local_planner
 TebLocalPlannerROS::TebLocalPlannerROS() : costmap_ros_(NULL), tf_(NULL), costmap_model_(NULL),
                                            costmap_converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"),
                                            dynamic_recfg_(NULL), custom_via_points_active_(false), goal_reached_(false), no_infeasible_plans_(0),
-                                           last_preferred_rotdir_(RotType::none), period_next(0), initialized_(false)
+                                           last_preferred_rotdir_(RotType::none), goal_reach_mode_xy_(true),period_next_(0), initialized_(false)
 {
 }
 
@@ -177,6 +177,8 @@ void TebLocalPlannerROS::initialize(std::string name, tf::TransformListener* tf,
     nh_move_base.param("controller_frequency", controller_frequency, controller_frequency);
     failure_detector_.setBufferLength(std::round(cfg_.recovery.oscillation_filter_duration*controller_frequency));
     
+    last_smooth_time_ = ros::Time::now();
+
     // set initialized flag
     initialized_ = true;
 
@@ -215,59 +217,82 @@ bool TebLocalPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& 
 bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 {
 
-  unsigned int period_record_size = 20; // 2s based on 10HZ update rate
+  unsigned int period_record_size = 1; // 0.5s based on 10HZ update rate, larger size will over-smooth
   double stdev_factor = 3.0;
+
+  if(period_record_size == 0)
+  {
+    return true;
+  }
+
+  double diff_time = (ros::Time::now()-last_smooth_time_).toSec();
+  last_smooth_time_ = ros::Time::now();
 
   double pose_linear_x = pose.getOrigin().x();
   double pose_linear_y = pose.getOrigin().y();
   double pose_angular_z = tf::getYaw(pose.getRotation());  
  // double pose_yaw = pose.getRotation();
 
-  if (period_pose_linear_x.size() < period_record_size)
+  if (period_pose_linear_x_.size() < period_record_size)
   {
-    period_pose_linear_x.push_back(pose_linear_x);
-    period_pose_linear_y.push_back(pose_linear_y);    
-    period_pose_angular_z.push_back(pose_angular_z);
+    period_pose_linear_x_.push_back(pose_linear_x);
+    period_pose_linear_y_.push_back(pose_linear_y);    
+    period_pose_angular_z_.push_back(pose_angular_z);
+
+    // here also handle the intial diff_time situation.
 
     return true;
   }
 
   // process position_linear_x
-  double sum_x = std::accumulate(std::begin(period_pose_linear_x), std::end(period_pose_linear_x), 0.0);
-	double mean_x = sum_x / period_pose_linear_x.size();
+  double sum_x = std::accumulate(std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), 0.0);
+	double mean_x = sum_x / period_pose_linear_x_.size();
  	double accum_x  = 0.0;
-	std::for_each (std::begin(period_pose_linear_x), std::end(period_pose_linear_x), [&](const double d_x) {
+	std::for_each (std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), [&](const double d_x) {
 		accum_x  += (d_x - mean_x)*(d_x - mean_x);
 	});
- 	double stdev_x = sqrt(accum_x/(period_pose_linear_x.size()-1));
+ 	double stdev_x = sqrt(accum_x/(period_pose_linear_x_.size()-1));
 
-  double threshold_x_max = mean_x + stdev_factor * stdev_x;
-  double threshold_x_min = mean_x - stdev_factor * stdev_x;
+  double threshold_x = diff_time * \
+                      (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
+                      (cfg_.robot.acc_lim_x * diff_time));
+  double threshold_x_max = mean_x + threshold_x;
+  double threshold_x_min = mean_x - threshold_x;
+
   if( pose_linear_x > threshold_x_max )
   {
     pose_linear_x = threshold_x_max;
   }
   if( pose_linear_x < threshold_x_min )
   {
-      pose_linear_x = threshold_x_min;   
+    pose_linear_x = threshold_x_min;   
   }  
 
-  period_pose_linear_x[period_next] = pose_linear_x;
+  period_pose_linear_x_[period_next_] = pose_linear_x;
 
-  // ROS_WARN("Smoother Sum_x=%.2f Mean_x=%.2f stdev_x=%.2f x_max=%.2f x_min=%.2f x_in=%.2f x_out=%.2f", 
-  //          sum_x, mean_x, stdev_x, threshold_x_max, threshold_x_min, pose.getOrigin().x(), pose_linear_x);
+  ROS_WARN("Smoother X mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+            mean_x, stdev_x, threshold_x_max, threshold_x_min, 
+            (fabs(mean_x) + cfg_.robot.max_vel_x * diff_time), 
+            (fabs(mean_x) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
+            diff_time,
+            pose.getOrigin().x(), pose_linear_x);
 
   // process position_linear_y
-  double sum_y = std::accumulate(std::begin(period_pose_linear_y), std::end(period_pose_linear_y), 0.0);
-	double mean_y = sum_y / period_pose_linear_y.size();
+  double sum_y = std::accumulate(std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), 0.0);
+	double mean_y = sum_y / period_pose_linear_y_.size();
  	double accum_y  = 0.0;
-	std::for_each (std::begin(period_pose_linear_y), std::end(period_pose_linear_y), [&](const double d_y) {
+	std::for_each (std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), [&](const double d_y) {
 		accum_y  += (d_y - mean_y)*(d_y - mean_y);
 	});
- 	double stdev_y = sqrt(accum_y/(period_pose_linear_y.size()-1));
+ 	double stdev_y = sqrt(accum_y/(period_pose_linear_y_.size()-1));
 
-  double threshold_y_max = mean_y + stdev_factor * stdev_y;
-  double threshold_y_min = mean_y - stdev_factor * stdev_y;
+  // use linear x data for linear y smooth
+  double threshold_y = diff_time * \
+                      (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
+                      (cfg_.robot.acc_lim_x * diff_time));
+  double threshold_y_max = mean_y + threshold_y;
+  double threshold_y_min = mean_y - threshold_y;
+
   if( pose_linear_y > threshold_y_max )
   {
     pose_linear_y = threshold_y_max;
@@ -277,22 +302,29 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
       pose_linear_y = threshold_y_min;   
   }  
 
-  period_pose_linear_y[period_next] = pose_linear_y;
+  period_pose_linear_y_[period_next_] = pose_linear_y;
 
-  // ROS_WARN("Smoother Sum_y=%.2f Mean_y=%.2f stdev_y=%.2f y_max=%.2f y_min=%.2f y_in=%.2f y_out=%.2f", 
-  //          sum_y, mean_y, stdev_y, threshold_y_max, threshold_y_min, pose.getOrigin().y(), pose_linear_y);
+  ROS_WARN("Smoother Y mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+            mean_y, stdev_y, threshold_y_max, threshold_y_min, 
+            (fabs(mean_y) + cfg_.robot.max_vel_x * diff_time), 
+            (fabs(mean_y) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
+            diff_time,
+            pose.getOrigin().y(), pose_linear_y);
 
    // process position_angular z
-  double sum_z = std::accumulate(std::begin(period_pose_angular_z), std::end(period_pose_angular_z), 0.0);
-	double mean_z = sum_z / period_pose_angular_z.size();
+  double sum_z = std::accumulate(std::begin(period_pose_angular_z_), std::end(period_pose_angular_z_), 0.0);
+	double mean_z = sum_z / period_pose_angular_z_.size();
  	double accum_z  = 0.0;
-	std::for_each (std::begin(period_pose_angular_z), std::end(period_pose_angular_z), [&](const double d_z) {
+	std::for_each (std::begin(period_pose_angular_z_), std::end(period_pose_angular_z_), [&](const double d_z) {
 		accum_z  += (d_z - mean_z)*(d_z - mean_z);
 	});
- 	double stdev_z = sqrt(accum_z/(period_pose_angular_z.size()-1));
+ 	double stdev_z = sqrt(accum_z/(period_pose_angular_z_.size()-1));
 
-  double threshold_z_max = mean_z + stdev_factor * stdev_z;
-  double threshold_z_min = mean_z - stdev_factor * stdev_z;
+  double threshold_z = diff_time * \
+                      (std::max(fabs(cfg_.robot.max_vel_theta), fabs(robot_vel_.angular.z)) \
+                      + (cfg_.robot.acc_lim_theta * diff_time));
+  double threshold_z_max = mean_z + threshold_z;
+  double threshold_z_min = mean_z - threshold_z;
 
   if(pose_angular_z > threshold_z_max)
   {
@@ -303,10 +335,14 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
     pose_angular_z = threshold_z_min;
   }
 
-  period_pose_angular_z[period_next] = pose_angular_z; 
+  period_pose_angular_z_[period_next_] = pose_angular_z; 
 
-  // ROS_WARN("Smoother Sum_z=%.2f Mean_z=%.2f stdev_z=%.2f z_max=%.2f z_min=%.2f z_in=%.2f z_out=%.2f", 
-  //           sum_z, mean_z, stdev_z, threshold_z_max, threshold_z_min, tf::getYaw(pose.getRotation()), pose_angular_z);
+  ROS_WARN("Smoother Z mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+            mean_z, stdev_z, threshold_z_max, threshold_z_min, 
+            (fabs(mean_z) + cfg_.robot.max_vel_theta * diff_time), 
+            (fabs(mean_z) + (fabs(robot_vel_.angular.z) + (cfg_.robot.acc_lim_theta*diff_time)) * diff_time), 
+            diff_time,
+            tf::getYaw(pose.getRotation()), pose_angular_z);
 
   // update the pose after smoother
   tf::Vector3 origin_new(pose_linear_x, pose_linear_y, 0);
@@ -316,8 +352,8 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   matrix_new.setRotation(tf::createQuaternionFromYaw(pose_angular_z));
   pose.setBasis(matrix_new);
 
-  period_next++;
-  period_next %= period_pose_linear_x.size();
+  period_next_++;
+  period_next_ %= period_pose_linear_x_.size();
 
   return true;
 }
@@ -341,7 +377,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   tf::Stamped<tf::Pose> robot_pose;
   costmap_ros_->getRobotPose(robot_pose);
 
-  //wangbin+:
+  //wangbin+: save robot raw pose for the tracking purpoe
   tf::Stamped<tf::Pose> robot_pose_raw;
   costmap_ros_->getRobotPose(robot_pose_raw);
 
@@ -560,53 +596,75 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       double robot_dy = -sin_theta1*deltaS.x() + cos_theta1*deltaS.y();
       double robot_orientdiff = g2o::normalize_theta(robot_goal_.theta() - robot_pose_.theta());
 
-      // move in X and Y axis
-      // dx is in MAP coordination
-      if(fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance)
-      {
-        cmd_vel.linear.x = 0.0;
-      }
-      else
-      {
-        double target_vel_linear_x = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dx)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
-        //cmd_vel.linear.x = fabs(dx)/dx * target_vel_linear_x;
-        cmd_vel.linear.x = fabs(robot_dx)/robot_dx * target_vel_linear_x;
-      }
-
-      if(fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
-      {
-        cmd_vel.linear.y = 0.0;
-      }
-      else
-      {
-        double target_vel_linear_y = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dy)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
-        //cmd_vel.linear.y = fabs(dy)/dy * target_vel_linear_y;
-        cmd_vel.linear.y = fabs(robot_dy)/robot_dy * target_vel_linear_y;
-      }
-      
-      if( (fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance) && 
-          (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance) &&
-          (fabs(d_angular_z) > cfg_.goal_tolerance.xy_goal_tolerance) 
-        )
-      {
-        // rotation as the last step
-        double target_vel_angular_z = std::max(std::min(vel_angular_z_max, vel_angular_z_max*fabs(d_angular_z)/delta_angular_threshold/scale_down_factor), vel_angular_z_min);
-        //cmd_vel.angular.z = fabs(d_angular_z)/d_angular_z * target_vel_angular_z;
-        cmd_vel.angular.z = fabs(robot_orientdiff)/robot_orientdiff * target_vel_angular_z;
-      }
-      else
+      // base on the mode flag to make either linear xy or angular z reach target, then swith
+      if( goal_reach_mode_xy_ ) // true: linear xy, false: angular z
       {
         cmd_vel.angular.z = 0.0;
+
+        // move in X and Y axis
+        // dx is in MAP coordination
+        if(fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance)
+        {
+          cmd_vel.linear.x = 0.0;
+        }
+        else
+        {
+          double target_vel_linear_x = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dx)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+          //cmd_vel.linear.x = fabs(dx)/dx * target_vel_linear_x;
+          cmd_vel.linear.x = fabs(robot_dx)/robot_dx * target_vel_linear_x;
+        }
+
+        if(fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance)
+        {
+          cmd_vel.linear.y = 0.0;
+        }
+        else
+        {
+          double target_vel_linear_y = std::max(std::min(vel_linear_xy_max, vel_linear_xy_max*fabs(dy)/delta_distance_threshold/scale_down_factor), vel_linear_xy_min);
+          //cmd_vel.linear.y = fabs(dy)/dy * target_vel_linear_y;
+          cmd_vel.linear.y = fabs(robot_dy)/robot_dy * target_vel_linear_y;
+        }
+
+        if( (fabs(dx) < cfg_.goal_tolerance.xy_goal_tolerance) && 
+            (fabs(dy) < cfg_.goal_tolerance.xy_goal_tolerance))
+        {
+          goal_reach_mode_xy_ = false; // true: linear xy, false: angular z
+        }
+      }
+      else // reach angular goal 
+      {
+        cmd_vel.linear.x = 0.0;
+        cmd_vel.linear.y = 0.0;
+
+        if( fabs(d_angular_z) > cfg_.goal_tolerance.xy_goal_tolerance )
+        {
+          // rotation as the last step
+          double target_vel_angular_z = std::max(std::min(vel_angular_z_max, vel_angular_z_max*fabs(d_angular_z)/delta_angular_threshold/scale_down_factor), vel_angular_z_min);
+          //cmd_vel.angular.z = fabs(d_angular_z)/d_angular_z * target_vel_angular_z;
+          cmd_vel.angular.z = fabs(robot_orientdiff)/robot_orientdiff * target_vel_angular_z;
+        }
+        else
+        {
+          cmd_vel.angular.z = 0.0;
+          goal_reach_mode_xy_ = true; // true: linear xy, false: angular z
+        }
       }
 
-      ROS_WARN("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) Vel(%.2f %.2f %.2f) (vel_y=%.2f acc_y=%.2f)", 
+      ROS_WARN("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) Vel(%.2f %.2f %.2f) (M=%d) (vel_y=%.2f acc_y=%.2f)", 
                 robot_goal_.x(),robot_goal_.y(),robot_goal_.theta(),
                 robot_pose_.x(),robot_pose_.y(),robot_pose_.theta(),
                 dx, dy,
                 delta_distance, delta_orient,
                 cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z, 
+                goal_reach_mode_xy_, 
                 cfg_.robot.max_vel_y, cfg_.robot.acc_lim_y);
     }
+    else
+    {
+      // reset the mode to xy
+      goal_reach_mode_xy_ = true; // true: linear xy, false: angular z
+    }
+    
   }
 
   // convert rot-vel to steering angle if desired (carlike robot).
