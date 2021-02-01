@@ -1245,6 +1245,10 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
     look_ahead_idx = teb().sizePoses() - 1;
   
+  // wangbin: add the logic to ensure there is no circule in trajectory
+  double max_delta_rot_from_start = 0.0;
+  double dist_when_max_delta_rot_from_start = 0.0;
+
   for (int i=0; i <= look_ahead_idx; ++i)
   {           
     if ( costmap_model->footprintCost(teb().Pose(i).x(), teb().Pose(i).y(), teb().Pose(i).theta(), footprint_spec, inscribed_radius, circumscribed_radius) < 0 )
@@ -1263,8 +1267,20 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
       double delta_rot = g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i+1).theta()) -
                                               g2o::normalize_theta(teb().Pose(i).theta()));
       Eigen::Vector2d delta_dist = teb().Pose(i+1).position()-teb().Pose(i).position();
+
+      //wangbin
+      double delta_rot_from_start = abs(g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i).theta()) -
+                                              g2o::normalize_theta(teb().Pose(0).theta())));
+      if(delta_rot_from_start > max_delta_rot_from_start)
+      {
+        max_delta_rot_from_start = delta_rot_from_start;
+        dist_when_max_delta_rot_from_start = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
+      }      
+      //wangbin: end
+
       if(fabs(delta_rot) > cfg_->trajectory.min_resolution_collision_check_angular || delta_dist.norm() > inscribed_radius)
       {
+
         int n_additional_samples = std::max(std::ceil(fabs(delta_rot) / cfg_->trajectory.min_resolution_collision_check_angular), 
                                             std::ceil(delta_dist.norm() / inscribed_radius)) - 1;
         PoseSE2 intermediate_pose = teb().Pose(i);
@@ -1286,6 +1302,20 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
       }
     }
   }
+
+  ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: max_rot=%.2f d_dist=%.2f inscribed_radius=%.2f ", 
+           max_delta_rot_from_start,
+           dist_when_max_delta_rot_from_start,
+           inscribed_radius);
+
+  // wangbin: add the logic to ensure there is no circle (3.00<3.14) in trajectory
+  if( (max_delta_rot_from_start >= 3.00 ) && 
+      (dist_when_max_delta_rot_from_start >= inscribed_radius) )
+  {
+    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: ==> found circle !! ");
+    return false;
+  }
+
   return true;
 }
 

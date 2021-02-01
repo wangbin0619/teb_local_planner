@@ -247,13 +247,13 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   // process position_linear_x
   double sum_x = std::accumulate(std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), 0.0);
 	double mean_x = sum_x / period_pose_linear_x_.size();
-  /*
+  
  	double accum_x  = 0.0;
 	std::for_each (std::begin(period_pose_linear_x_), std::end(period_pose_linear_x_), [&](const double d_x) {
 		accum_x  += (d_x - mean_x)*(d_x - mean_x);
 	});
  	double stdev_x = sqrt(accum_x/(period_pose_linear_x_.size()-1));
-  */
+  
   double threshold_x = diff_time * \
                       (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
                       (cfg_.robot.acc_lim_x * diff_time));
@@ -271,7 +271,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_x_[period_next_] = pose_linear_x;
 
-  ROS_WARN("Smoother X mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+  ROS_INFO("Smoother X mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
             mean_x, stdev_x, threshold_x_max, threshold_x_min, 
             (fabs(mean_x) + cfg_.robot.max_vel_x * diff_time), 
             (fabs(mean_x) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
@@ -281,13 +281,13 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
   // process position_linear_y
   double sum_y = std::accumulate(std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), 0.0);
 	double mean_y = sum_y / period_pose_linear_y_.size();
-  /*
+  
  	double accum_y  = 0.0;
 	std::for_each (std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), [&](const double d_y) {
 		accum_y  += (d_y - mean_y)*(d_y - mean_y);
 	});
  	double stdev_y = sqrt(accum_y/(period_pose_linear_y_.size()-1));
-  */
+  
   // use linear x data for linear y smooth
   double threshold_y = diff_time * \
                       (std::max(fabs(cfg_.robot.max_vel_x),fabs(robot_vel_.linear.x)) + \
@@ -306,7 +306,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_y_[period_next_] = pose_linear_y;
 
-  ROS_WARN("Smoother Y mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+  ROS_INFO("Smoother Y mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
             mean_y, stdev_y, threshold_y_max, threshold_y_min, 
             (fabs(mean_y) + cfg_.robot.max_vel_x * diff_time), 
             (fabs(mean_y) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
@@ -341,7 +341,7 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_angular_z_[period_next_] = pose_angular_z; 
 
-  ROS_WARN("Smoother Z mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+  ROS_INFO("Smoother Z mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
             mean_z, stdev_z, threshold_z_max, threshold_z_min, 
             (fabs(mean_z) + cfg_.robot.max_vel_theta * diff_time), 
             (fabs(mean_z) + (fabs(robot_vel_.angular.z) + (cfg_.robot.acc_lim_theta*diff_time)) * diff_time), 
@@ -654,7 +654,7 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
         }
       }
 
-      ROS_WARN("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) Vel(%.2f %.2f %.2f) (M=%d) (vel_y=%.2f acc_y=%.2f)", 
+      ROS_INFO("G(%.2f %.2f %.2f) R(%.2f %.2f %.2f) (Dx=%.2f Dy=%.2f DS=%.2f DO=%.2f) Vel(%.2f %.2f %.2f) (M=%d) (vel_y=%.2f acc_y=%.2f)", 
                 robot_goal_.x(),robot_goal_.y(),robot_goal_.theta(),
                 robot_pose_.x(),robot_pose_.y(),robot_pose_.theta(),
                 dx, dy,
@@ -907,7 +907,7 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
 
     if(start_point)
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
+      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f === Via Point Start ===", transformed_plan[0].pose.position.x, transformed_plan[0].pose.position.y);
       start_point = false;
     }
 
@@ -915,12 +915,12 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (feasible)
     {
       // add via-point
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
     }
     else
     {
-      ROS_WARN("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f NOT feasiable !!",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
     }
     
     prev_idx = i;
