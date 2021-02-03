@@ -1303,17 +1303,24 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
     }
   }
 
-  ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: max_rot=%.2f d_dist=%.2f inscribed_radius=%.2f ", 
-           max_delta_rot_from_start,
-           dist_when_max_delta_rot_from_start,
-           inscribed_radius);
+  // ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: max_rot=%.2f d_dist=%.2f inscribed_radius=%.2f ", 
+  //          max_delta_rot_from_start,
+  //          dist_when_max_delta_rot_from_start,
+  //          inscribed_radius);
 
   // wangbin: add the logic to ensure there is no circle (3.00<3.14) in trajectory
-  if( (max_delta_rot_from_start >= 3.00 ) && 
-      (dist_when_max_delta_rot_from_start >= inscribed_radius) )
+  double rot_threshold = 1.57;
+  double dist_threshold = inscribed_radius/2;
+
+  if( (max_delta_rot_from_start >= rot_threshold ) && 
+      (dist_when_max_delta_rot_from_start >= dist_threshold) )
   {
-    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: ==> found circle !! ");
-    return false;
+    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: rot(%.2f thre %.2f) dist(%.2f thre %.2f)", 
+            max_delta_rot_from_start, rot_threshold,
+            dist_when_max_delta_rot_from_start, dist_threshold);
+
+    // ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: ==> found circle !! ");
+    // return false;
   }
 
   return true;
