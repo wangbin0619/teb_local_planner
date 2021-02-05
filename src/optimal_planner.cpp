@@ -1362,5 +1362,89 @@ bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* co
   return true;
 }
 
+bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
+                                        double& distance, double& orientdiff)
+{
+  distance = 0.0;
+  orientdiff = 0.0;
+
+  // get from via point
+  double x1 = start(0);
+  double y1 = start(1);
+  double x2 = end(0);
+  double y2 = end(1);
+  double yaw = std::atan2((y2-y1),(x2-x1));
+
+  // get from pose
+  double x0 = pose.x();
+  double y0 = pose.y();
+  double theta0 = pose.theta();
+
+  // caculate the distance, orientation diff and veritical point in the line
+  // formulate as: Ax + By + C = 0
+ 
+  double k = (x1==x2)?10000:(y2-y1)/(x2-x1);
+  double a = k;
+  double b = -1.0;
+  double c = y1 - k * x1;
+ 
+  distance = fabs(a*x0+b*y0+c)/std::sqrt(a*a+b*b);
+  orientdiff = fabs(g2o::normalize_theta(theta0-yaw));
+
+  double px = (b*b*x0-a*b*y0-a*c)/(a*a+b*b);
+  double py = (a*a*y0-a*b*x0-b*c)/(a*a+b*b); 
+
+  pose.x() = px;
+  pose.y() = py;
+  pose.theta() = yaw;
+
+  ROS_WARN("getDistanceP2L: Start(%.2f %.2f) End(%.2f %.2f) X0(%.2f %.2f %.2f) DIFF(%.2f %.2f) PX(%.2f %.2f %.2f)", 
+          x1, y1, x2, y2, 
+          x0, y0, theta0, 
+          distance, orientdiff, 
+          px, py, yaw);
+
+  return true;
+}
+
+// wangbin: it is specific for SZYH coverage need of straight line.
+// when generated pose is 1. between 2 continuous viapoint and distance to straight line is small, 
+// then update the pose x, y and linear z to the line.
+bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx)
+{
+  if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
+  {
+    look_ahead_idx = teb().sizePoses() - 1;
+  }
+
+  if (via_points_==NULL || via_points_->empty() || via_points_->size() < 2 )
+  {
+    return false; // return if there is no viapoint (near goal)
+  }
+  
+  Eigen::Vector2d viaPoint_start = *via_points_->begin(); 
+  Eigen::Vector2d viaPoint_end = *via_points_->end();
+
+  double Distance_2_Line_Threshold = 0.05;
+  double OrientDiff_2_Line_Threshold = 0.05;
+
+  for (int i=0; i <= look_ahead_idx; ++i)
+  {           
+    PoseSE2 pose_current = teb().Pose(i);
+    double dist2line = 0.0;
+    double orientdiff2line = 0.0;
+
+    if(getDistanceP2L(pose_current, viaPoint_start, viaPoint_end, dist2line, orientdiff2line))
+    {
+      if(dist2line <= Distance_2_Line_Threshold && orientdiff2line <= OrientDiff_2_Line_Threshold)
+      {
+        teb().Pose(i) = pose_current;
+      }
+    }
+  }
+  return true;
+}
+
+
 
 } // namespace teb_local_planner

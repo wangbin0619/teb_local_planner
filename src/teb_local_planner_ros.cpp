@@ -520,6 +520,9 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     costmap_2d::calculateMinAndMaxDistances(footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius);
   }
 
+  // wangbin: to update trajectory for coverage path based on via point
+  planner_->updateTrajectoryPerViapointForCoverage(cfg_.trajectory.feasibility_check_no_poses);
+
   // wangbin: to check if the nearest via point impact on the Trajectory feasibility
   bool feasible = planner_->isTrajectoryFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, cfg_.trajectory.feasibility_check_no_poses);
   if (!feasible)

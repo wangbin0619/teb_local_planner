@@ -181,6 +181,17 @@ public:
   {
     return false;
   }
+
+  virtual bool getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
+                                        double& distance, double& orientdiff)
+  {
+    return false;
+  }
+
+  virtual bool updateTrajectoryPerViapointForCoverage(int look_ahead_idx)
+  {
+    return false;
+  }
  
   /**
    * Compute and return the cost of the current optimization graph (supports multiple trajectories)

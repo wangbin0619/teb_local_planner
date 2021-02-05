@@ -515,6 +515,11 @@ public:
   virtual bool isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
           double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point, double inflation_dist);
 
+  virtual bool getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
+                                        double& distance, double& orientdiff);
+
+  virtual bool updateTrajectoryPerViapointForCoverage(int look_ahead_idx);
+
 protected:
   
   /** @name Hyper-Graph creation and optimization */
