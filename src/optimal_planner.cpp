@@ -1398,10 +1398,18 @@ bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eig
   pose.y() = py;
   pose.theta() = yaw;
 
-  ROS_WARN("getDistanceP2L: Start(%.2f %.2f) End(%.2f %.2f) X0(%.2f %.2f %.2f) DIFF(%.2f %.2f) PX(%.2f %.2f %.2f)", 
+  char update = 'N';
+
+  if(distance<=cfg_.goal_tolerance.xy_goal_tolerance and orientdiff<=cfg_.goal_tolerance.yaw_goal_tolerance)
+  {
+    update = 'Y';
+  }
+
+  ROS_WARN("getDistanceP2L: Start(%.2f %.2f) End(%.2f %.2f) X0(%.2f %.2f %.2f) DIFF(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
           x1, y1, x2, y2, 
           x0, y0, theta0, 
           distance, orientdiff, 
+          update,
           px, py, yaw);
 
   return true;
@@ -1423,10 +1431,12 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
   }
   
   Eigen::Vector2d viaPoint_start = *via_points_->begin(); 
-  Eigen::Vector2d viaPoint_end = *via_points_->end();
+  Eigen::Vector2d viaPoint_end = *(++via_points_->begin());
 
-  double Distance_2_Line_Threshold = 0.05;
-  double OrientDiff_2_Line_Threshold = 0.05;
+  double Distance_2_Line_Threshold = cfg_.goal_tolerance.xy_goal_tolerance;
+  double OrientDiff_2_Line_Threshold = cfg_.goal_tolerance.yaw_goal_tolerance;
+
+  ROS_WARN("updateTrajectoryPerViapointForCoverage === >> ");
 
   for (int i=0; i <= look_ahead_idx; ++i)
   {           
