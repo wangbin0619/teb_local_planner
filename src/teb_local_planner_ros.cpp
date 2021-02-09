@@ -521,7 +521,8 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   }
 
   // wangbin: to update trajectory for coverage path based on via point
-  planner_->updateTrajectoryPerViapointForCoverage(cfg_.trajectory.feasibility_check_no_poses);
+  tf::Stamped<tf::Pose> robot_pose_coverage_diff = robot_pose;
+  planner_->updateTrajectoryPerViapointForCoverage(cfg_.trajectory.feasibility_check_no_poses, robot_pose_coverage_diff);
 
   // wangbin: to check if the nearest via point impact on the Trajectory feasibility
   bool feasible = planner_->isTrajectoryFeasible(costmap_model_.get(), footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius, cfg_.trajectory.feasibility_check_no_poses);
@@ -705,9 +706,11 @@ bool TebLocalPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   visualization_->publishGoal(global_goal);
   visualization_->publishCurrentLocation(robot_pose_raw);
   visualization_->publishCurrentLocationSmoothed(robot_pose);
-
   visualization_->publishVelcmdRaw(raw_cmd_);
   visualization_->publishVelcmdModified(cmd_vel);
+
+  // wangbin+: add for the pose diff vs coverage path
+  visualization_->publishPoseDifferent(robot_pose_coverage_diff);
 
   visualization_->publishObstacles(obstacles_);
   visualization_->publishViaPoints(via_points_);

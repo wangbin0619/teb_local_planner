@@ -188,7 +188,7 @@ public:
     return false;
   }
 
-  virtual bool updateTrajectoryPerViapointForCoverage(int look_ahead_idx)
+  virtual bool updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
   {
     return false;
   }

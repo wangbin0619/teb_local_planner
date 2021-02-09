@@ -74,6 +74,9 @@ void TebVisualization::initialize(ros::NodeHandle& nh, const TebConfig& cfg)
   teb_vel_cmd_raw_pub_ = nh.advertise<geometry_msgs::Twist>("teb_cmd_vel_raw",1);
   teb_vel_cmd_modified_pub_ = nh.advertise<geometry_msgs::Twist>("teb_cmd_vel_modified",1);
 
+  //wangbin+: add for pose diff vs coverage path
+  teb_pose_coverage_diff_pub_ = nh.advertise<geometry_msgs::PoseStamped>("teb_pose_coverage_diff",1);
+
   initialized_ = true; 
 }
 
@@ -130,6 +133,18 @@ void TebVisualization::publishVelcmdModified(const geometry_msgs::Twist& cmd) co
     return;
   
   teb_vel_cmd_modified_pub_.publish(cmd);
+}
+
+void TebVisualization::publishPoseDifferent(const tf::Stamped<tf::Pose>& robot_pose_diff) const
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+  
+  geometry_msgs::PoseStamped pose_diff;
+
+  tf::poseStampedTFToMsg(robot_pose_diff, pose_diff);
+
+  teb_pose_coverage_diff_pub_.publish(pose_diff);
 }
 
 //wangbin+ End: add for the reach goal

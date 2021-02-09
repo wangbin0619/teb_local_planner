@@ -1400,7 +1400,7 @@ bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eig
 
   char update = 'N';
 
-  if(distance<=cfg_.goal_tolerance.xy_goal_tolerance and orientdiff<=cfg_.goal_tolerance.yaw_goal_tolerance)
+  if(distance<=cfg_->goal_tolerance.xy_goal_tolerance && orientdiff<=cfg_->goal_tolerance.yaw_goal_tolerance)
   {
     update = 'Y';
   }
@@ -1418,7 +1418,7 @@ bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eig
 // wangbin: it is specific for SZYH coverage need of straight line.
 // when generated pose is 1. between 2 continuous viapoint and distance to straight line is small, 
 // then update the pose x, y and linear z to the line.
-bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx)
+bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
 {
   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
   {
@@ -1433,8 +1433,8 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
   Eigen::Vector2d viaPoint_start = *via_points_->begin(); 
   Eigen::Vector2d viaPoint_end = *(++via_points_->begin());
 
-  double Distance_2_Line_Threshold = cfg_.goal_tolerance.xy_goal_tolerance;
-  double OrientDiff_2_Line_Threshold = cfg_.goal_tolerance.yaw_goal_tolerance;
+  double Distance_2_Line_Threshold = cfg_->goal_tolerance.xy_goal_tolerance;
+  double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance;
 
   ROS_WARN("updateTrajectoryPerViapointForCoverage === >> ");
 
@@ -1450,6 +1450,18 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
       {
         teb().Pose(i) = pose_current;
       }
+
+      // following is to virtualize the pose different vs coverage path for the first pose.
+      if(i==0)
+      {
+        tf::Vector3 origin_new(0, 0, dist2line);
+        pose_coverage_diff.setOrigin(origin_new);
+
+        tf::Matrix3x3 matrix_new;
+        matrix_new.setRotation(tf::createQuaternionFromYaw(orientdiff2line));
+        pose_coverage_diff.setBasis(matrix_new);
+      }
+
     }
   }
   return true;

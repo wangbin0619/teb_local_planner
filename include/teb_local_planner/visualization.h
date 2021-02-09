@@ -110,6 +110,8 @@ public:
   void publishVelcmdRaw(const geometry_msgs::Twist& cmd) const;
   void publishVelcmdModified(const geometry_msgs::Twist& cmd) const;
 
+  //wangbin+: add for coverage path adjustment
+  void publishPoseDifferent(const tf::Stamped<tf::Pose>& robot_pose_diff) const;  
   
   /** @name Publish to topics */
   //@{
@@ -269,6 +271,10 @@ protected:
   ros::Publisher teb_current_location_smoothed_pub_; //!< Publisher for the current location
   ros::Publisher teb_vel_cmd_raw_pub_; //!< Publisher for the raw vel_cmd from TEB
   ros::Publisher teb_vel_cmd_modified_pub_; //!< Publisher for the vel_cmd after modified to reach goal
+
+  // wangbin+: add publisher for pose different vs coverage path
+  ros::Publisher teb_pose_coverage_diff_pub_; //!< Publisher for the pose diff vs coverage path
+
 
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   
