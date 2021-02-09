@@ -126,8 +126,9 @@ public:
    * @param via_points Container storing via-points (optional)
    */
   TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
-                    TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
-  
+                    TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL,
+                    const ViaPointContainer* via_points_history = NULL);
+
   /**
    * @brief Destruct the optimal planner.
    */
@@ -142,7 +143,8 @@ public:
     * @param via_points Container storing via-points (optional)
     */
   void initialize(const TebConfig& cfg, ObstContainer* obstacles = NULL, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
-                  TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
+                  TebVisualizationPtr visual = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL,
+                  const ViaPointContainer* via_points_history = NULL);
   
   
 
@@ -515,8 +517,7 @@ public:
   virtual bool isViaPointsFeasible(base_local_planner::CostmapModel* costmap_model, const std::vector<geometry_msgs::Point>& footprint_spec,
           double inscribed_radius, double circumscribed_radius, Eigen::Vector2d via_point, double inflation_dist);
 
-  virtual bool getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
-                                        double& distance, double& orientdiff);
+  virtual bool getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, double& distance, double& orientdiff);
 
   virtual bool updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff);
 
@@ -687,7 +688,10 @@ protected:
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   ObstContainer* obstacles_; //!< Store obstacles that are relevant for planning
   const ViaPointContainer* via_points_; //!< Store via points for planning
-  
+
+  // wangbin+: to keep via_points for the coverage path adherence
+  const ViaPointContainer* via_points_history_; //!< Container of via-points that should be considered during local trajectory optimization
+
   double cost_; //!< Store cost value of the current hyper-graph
   RotType prefer_rotdir_; //!< Store whether to prefer a specific initial rotation in optimization (might be activated in case the robot oscillates)
   

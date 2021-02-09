@@ -109,7 +109,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf::TransformListener* tf,
     }
     else
     {
-      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_));
+      planner_ = PlannerInterfacePtr(new TebOptimalPlanner(cfg_, &obstacles_, robot_model, visualization_, &via_points_, &via_points_history_));
       ROS_INFO("Parallel planning in distinctive topologies disabled.");
     }
     
@@ -179,6 +179,9 @@ void TebLocalPlannerROS::initialize(std::string name, tf::TransformListener* tf,
     
     last_smooth_time_ = ros::Time::now();
 
+    via_points_.clear();
+    via_points_history_.clear();
+
     // set initialized flag
     initialized_ = true;
 
@@ -210,6 +213,9 @@ bool TebLocalPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& 
             
   // reset goal_reached_ flag
   goal_reached_ = false;
+
+  // wangbin+: to clear up 
+  via_points_history_.clear();
   
   return true;
 }
@@ -923,6 +929,12 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
       // add via-point
       ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
       via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+      
+      if(via_points_history_.size() <= 2) // we actually use 2 viapoints to calculate the coverage path
+      {
+        via_points_history_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+        ROS_WARN("TebLocalPlannerROS: viapoint_history: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+      }
     }
     else
     {

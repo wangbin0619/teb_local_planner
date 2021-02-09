@@ -51,9 +51,11 @@ TebOptimalPlanner::TebOptimalPlanner() : cfg_(NULL), obstacles_(NULL), via_point
 {    
 }
   
-TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, 
+                                      const ViaPointContainer* via_points,
+                                      const ViaPointContainer* via_points_history)
 {    
-  initialize(cfg, obstacles, robot_model, visual, via_points);
+  initialize(cfg, obstacles, robot_model, visual, via_points, via_points_history);
 }
 
 TebOptimalPlanner::~TebOptimalPlanner()
@@ -66,7 +68,9 @@ TebOptimalPlanner::~TebOptimalPlanner()
   //g2o::HyperGraphActionLibrary::destroy();
 }
 
-void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacles, RobotFootprintModelPtr robot_model, TebVisualizationPtr visual, 
+                                    const ViaPointContainer* via_points,
+                                    const ViaPointContainer* via_points_history)
 {    
   // init optimizer (set solver and block ordering settings)
   optimizer_ = initOptimizer();
@@ -75,6 +79,8 @@ void TebOptimalPlanner::initialize(const TebConfig& cfg, ObstContainer* obstacle
   obstacles_ = obstacles;
   robot_model_ = robot_model;
   via_points_ = via_points;
+  via_points_history_ = via_points_history;
+
   cost_ = HUGE_VAL;
   prefer_rotdir_ = RotType::none;
   setVisualization(visual);
@@ -1269,7 +1275,7 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
       Eigen::Vector2d delta_dist = teb().Pose(i+1).position()-teb().Pose(i).position();
 
       //wangbin
-      double delta_rot_from_start = abs(g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i).theta()) -
+      double delta_rot_from_start = fabs(g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i).theta()) -
                                               g2o::normalize_theta(teb().Pose(0).theta())));
       if(delta_rot_from_start > max_delta_rot_from_start)
       {
@@ -1359,6 +1365,7 @@ bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* co
       return false;
     }
   }
+
   return true;
 }
 
@@ -1398,26 +1405,45 @@ bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eig
   pose.y() = py;
   pose.theta() = yaw;
 
-  char update = 'N';
-
-  if(distance<=cfg_->goal_tolerance.xy_goal_tolerance && orientdiff<=cfg_->goal_tolerance.yaw_goal_tolerance)
-  {
-    update = 'Y';
-  }
-
-  ROS_WARN("getDistanceP2L: Start(%.2f %.2f) End(%.2f %.2f) X0(%.2f %.2f %.2f) DIFF(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
-          x1, y1, x2, y2, 
-          x0, y0, theta0, 
-          distance, orientdiff, 
-          update,
-          px, py, yaw);
-
   return true;
 }
 
 // wangbin: it is specific for SZYH coverage need of straight line.
 // when generated pose is 1. between 2 continuous viapoint and distance to straight line is small, 
 // then update the pose x, y and linear z to the line.
+// bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
+// {
+//   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
+//   {
+//     look_ahead_idx = teb().sizePoses() - 1;
+//   }
+
+//   if (via_points_==NULL || via_points_->empty() || via_points_history_->empty() || via_points_history_->size() < 2 )
+//   {
+//     return false; // return if there is no viapoint (near goal)
+//   }
+
+//   Eigen::Vector2d viaPoint = *via_points_->begin(); 
+//   double x0 = teb().Pose(0).x();
+//   double y0 = teb().Pose(0).y();
+//   double x1 = viaPoint(0);
+//   double y1 = viaPoint(1);
+
+//   double dist_to_viaPoint = std::sqrt((y1-y0)*(y1-y0),(x1-x0)*(x1-x0)); 
+  
+//   if(dist_to_viaPoint <= cfg_->trajectory.global_plan_viapoint_sep)
+//   {
+//     for (int i=0; i <= look_ahead_idx; ++i)
+//     {
+//       double dis_to_pose = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
+//       if(dis_to_pose <= dist_to_viaPoint)
+//       {
+
+//       }
+//     }    
+//   }
+// }
+
 bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
 {
   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
@@ -1425,36 +1451,58 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
     look_ahead_idx = teb().sizePoses() - 1;
   }
 
-  if (via_points_==NULL || via_points_->empty() || via_points_->size() < 2 )
+  if (via_points_==NULL || via_points_history_->empty() || via_points_history_->size() < 2 )
   {
     return false; // return if there is no viapoint (near goal)
   }
   
-  Eigen::Vector2d viaPoint_start = *via_points_->begin(); 
-  Eigen::Vector2d viaPoint_end = *(++via_points_->begin());
+  Eigen::Vector2d viaPoint_start = *via_points_history_->begin(); 
+  Eigen::Vector2d viaPoint_end = *(++via_points_history_->begin());
 
-  double Distance_2_Line_Threshold = cfg_->goal_tolerance.xy_goal_tolerance;
-  double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance;
+  double Distance_2_Line_Threshold = cfg_->goal_tolerance.xy_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
+  double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
+  double Trajectory_OrientDiff_2_Line_Threshold = 5 * OrientDiff_2_Line_Threshold;
+  double Trajectory_DistanceDiff_2_Line_Threshold = 5 * Distance_2_Line_Threshold;
 
   ROS_WARN("updateTrajectoryPerViapointForCoverage === >> ");
+
+  double max_delta_rot_from_start = 0.0;
+  double dist_when_max_delta_rot_from_start = 0.0;
+  for (int i=0; i <= look_ahead_idx; ++i)
+  {
+      double delta_rot_from_start = fabs(g2o::normalize_theta(teb().Pose(i).theta() - teb().Pose(0).theta()));
+      if(delta_rot_from_start > max_delta_rot_from_start)
+      {
+        max_delta_rot_from_start = delta_rot_from_start;
+        dist_when_max_delta_rot_from_start = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
+      }      
+  }
 
   for (int i=0; i <= look_ahead_idx; ++i)
   {           
     PoseSE2 pose_current = teb().Pose(i);
+    PoseSE2 pose_tmp = teb().Pose(i);
     double dist2line = 0.0;
     double orientdiff2line = 0.0;
+    char update = 'N';
 
     if(getDistanceP2L(pose_current, viaPoint_start, viaPoint_end, dist2line, orientdiff2line))
     {
-      if(dist2line <= Distance_2_Line_Threshold && orientdiff2line <= OrientDiff_2_Line_Threshold)
+
+      if( max_delta_rot_from_start < Trajectory_OrientDiff_2_Line_Threshold && 
+          dist_when_max_delta_rot_from_start < Trajectory_DistanceDiff_2_Line_Threshold)
       {
-        teb().Pose(i) = pose_current;
+        if(dist2line <= Distance_2_Line_Threshold && orientdiff2line <= OrientDiff_2_Line_Threshold)
+        {
+          teb().Pose(i) = pose_current;
+          update = 'Y';
+        }        
       }
 
       // following is to virtualize the pose different vs coverage path for the first pose.
       if(i==0)
       {
-        tf::Vector3 origin_new(0, 0, dist2line);
+        tf::Vector3 origin_new(dist2line, dist_when_max_delta_rot_from_start, max_delta_rot_from_start);
         pose_coverage_diff.setOrigin(origin_new);
 
         tf::Matrix3x3 matrix_new;
@@ -1462,6 +1510,16 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
         pose_coverage_diff.setBasis(matrix_new);
       }
 
+      ROS_WARN("P2L: S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f/%.2f %.2f/%.2f) TrajD(%.2f/%.2f %.2f/%.2f) << %c >> PX(%.2f %.2f %.2f)", 
+              viaPoint_start(0), viaPoint_start(1),
+              viaPoint_end(0), viaPoint_end(1), 
+              pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
+              dist2line, Distance_2_Line_Threshold, 
+              orientdiff2line, OrientDiff_2_Line_Threshold, 
+              dist_when_max_delta_rot_from_start, Trajectory_DistanceDiff_2_Line_Threshold,
+              max_delta_rot_from_start, Trajectory_OrientDiff_2_Line_Threshold,
+              update,
+              pose_current.x(), pose_current.x(), pose_current.theta());
     }
   }
   return true;

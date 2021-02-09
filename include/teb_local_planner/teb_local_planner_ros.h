@@ -363,6 +363,10 @@ private:
   PlannerInterfacePtr planner_; //!< Instance of the underlying optimal planner class
   ObstContainer obstacles_; //!< Obstacle vector that should be considered during local trajectory optimization
   ViaPointContainer via_points_; //!< Container of via-points that should be considered during local trajectory optimization
+
+  // wangbin+: to keep via_points for the coverage path adherence
+  ViaPointContainer via_points_history_; //!< Container of via-points that should be considered during local trajectory optimization
+  
   TebVisualizationPtr visualization_; //!< Instance of the visualization class (local/global plan, obstacles, ...)
   boost::shared_ptr<base_local_planner::CostmapModel> costmap_model_;  
   TebConfig cfg_; //!< Config class that stores and manages all related parameters
