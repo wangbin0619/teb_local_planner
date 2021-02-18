@@ -1315,18 +1315,22 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
   //          inscribed_radius);
 
   // wangbin: add the logic to ensure there is no circle (3.00<3.14) in trajectory
-  double rot_threshold = 1.57;
-  double dist_threshold = inscribed_radius/2;
+  double rot_threshold = 3.00;
+  double dist_threshold = inscribed_radius;
+
+  if( (max_delta_rot_from_start >= rot_threshold/2 ) && 
+      (dist_when_max_delta_rot_from_start >= dist_threshold/2) )
+  {
+    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: rot(%.2f thre %.2f) dist(%.2f thre %.2f)", 
+            max_delta_rot_from_start, rot_threshold,
+            dist_when_max_delta_rot_from_start, dist_threshold);    
+  }
 
   if( (max_delta_rot_from_start >= rot_threshold ) && 
       (dist_when_max_delta_rot_from_start >= dist_threshold) )
   {
-    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: rot(%.2f thre %.2f) dist(%.2f thre %.2f)", 
-            max_delta_rot_from_start, rot_threshold,
-            dist_when_max_delta_rot_from_start, dist_threshold);
-
-    // ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: ==> found circle !! ");
-    // return false;
+    ROS_WARN("TebLocalPlannerROS: Trajectory Poses Diff: ==> found circle !! ");
+    return false;
   }
 
   return true;
@@ -1457,7 +1461,7 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
   
   if(dist_to_viaPoint <= 1.2 * cfg_->trajectory.global_plan_viapoint_sep)
   {
-    ROS_WARN("D2L >>>> ");
+    ROS_INFO("D2L >>>> ");
     for (int i=0; i <= look_ahead_idx; ++i)
     {
       char update = 'N';
@@ -1474,17 +1478,14 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
         // this is for case 1, only pose_start and viaPoint will be used
         if(getDistanceP2L(pose_current, 1, pose_start, viaPoint_start, viaPoint, dist2line, orientdiff2line))
         {
- 
-          teb().Pose(i) = pose_current;
-          update = 'Y';
-          // if(orientdiff2line <= OrientDiff_2_Line_Threshold)
-          // {
-          //   teb().Pose(i) = pose_current;
-          //   update = 'Y';
-          // }                     
+          if(orientdiff2line <= OrientDiff_2_Line_Threshold)
+          {
+            teb().Pose(i) = pose_current;
+            update = 'Y';
+          }                     
         }
 
-        ROS_WARN("D2L<1> S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
+        ROS_INFO("D2L<1> S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
                 x0, y0,
                 x1, y1, 
                 pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
@@ -1497,7 +1498,7 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
   }
   else
   {
-    ROS_WARN("D2L ==skip== ");
+    ROS_INFO("D2L ==skip== ");
   }
 }
 

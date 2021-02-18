@@ -927,8 +927,11 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (feasible)
     {
       // add via-point
-      ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
-      via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+      if(via_points_.empty())
+      {
+        ROS_INFO("TebLocalPlannerROS: viapoint: x=%.2f, y=%.2f OK ",transformed_plan[i].pose.position.x , transformed_plan[i].pose.position.y);
+        via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+      }
       
       if(via_points_history_.size() <= 2) // we actually use 2 viapoints to calculate the coverage path
       {
