@@ -1369,15 +1369,30 @@ bool TebOptimalPlanner::isViaPointsFeasible(base_local_planner::CostmapModel* co
   return true;
 }
 
-bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
+// mode: 1 from pose to end via_point; 2 from start viapoint to end viapoint
+bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, int mode, PoseSE2 start_pose, Eigen::Vector2d start, Eigen::Vector2d end, 
                                         double& distance, double& orientdiff)
 {
   distance = 0.0;
   orientdiff = 0.0;
 
-  // get from via point
-  double x1 = start(0);
-  double y1 = start(1);
+  // start point
+  double x1 = 0.0;
+  double y1 = 0.0;
+
+  if(mode == 1)
+  {
+    // get from current pose
+    x1 = start_pose.x();
+    y1 = start_pose.y();
+  }
+  else
+  {
+    // get from via point
+    x1 = start(0);
+    y1 = start(1);    
+  }
+
   double x2 = end(0);
   double y2 = end(1);
   double yaw = std::atan2((y2-y1),(x2-x1));
@@ -1409,40 +1424,11 @@ bool TebOptimalPlanner::getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eig
 }
 
 // wangbin: it is specific for SZYH coverage need of straight line.
-// when generated pose is 1. between 2 continuous viapoint and distance to straight line is small, 
-// then update the pose x, y and linear z to the line.
-// bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
-// {
-//   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
-//   {
-//     look_ahead_idx = teb().sizePoses() - 1;
-//   }
-
-//   if (via_points_==NULL || via_points_->empty() || via_points_history_->empty() || via_points_history_->size() < 2 )
-//   {
-//     return false; // return if there is no viapoint (near goal)
-//   }
-
-//   Eigen::Vector2d viaPoint = *via_points_->begin(); 
-//   double x0 = teb().Pose(0).x();
-//   double y0 = teb().Pose(0).y();
-//   double x1 = viaPoint(0);
-//   double y1 = viaPoint(1);
-
-//   double dist_to_viaPoint = std::sqrt((y1-y0)*(y1-y0),(x1-x0)*(x1-x0)); 
-  
-//   if(dist_to_viaPoint <= cfg_->trajectory.global_plan_viapoint_sep)
-//   {
-//     for (int i=0; i <= look_ahead_idx; ++i)
-//     {
-//       double dis_to_pose = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
-//       if(dis_to_pose <= dist_to_viaPoint)
-//       {
-
-//       }
-//     }    
-//   }
-// }
+// update the generated poses for cases of :
+// 0. assumption: the via_point_seq is small (such as 0.5m) so no obstacle within 2 continuous viapoints.
+// 1. near the viapoint (distance less than via_point_seq), then update as straight line to viapoint. 
+// 2. between 2 continuous viapoint, then update as straight line between those 2 viapoints.
+// 3. else cases, no update
 
 bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
 {
@@ -1451,79 +1437,150 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
     look_ahead_idx = teb().sizePoses() - 1;
   }
 
-  if (via_points_==NULL || via_points_history_->empty() || via_points_history_->size() < 2 )
+  // via_points used to find the current via_points for update
+  // via_points_history used to handle the special case as only 1 viapoint within via_points due to near the goal
+  if (via_points_==NULL || via_points_->empty() || via_points_history_->empty() || via_points_history_->size() < 2 )
   {
     return false; // return if there is no viapoint (near goal)
   }
-  
+
   Eigen::Vector2d viaPoint_start = *via_points_history_->begin(); 
   Eigen::Vector2d viaPoint_end = *(++via_points_history_->begin());
 
-  double Distance_2_Line_Threshold = cfg_->goal_tolerance.xy_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
-  double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
-  double Trajectory_OrientDiff_2_Line_Threshold = 5 * OrientDiff_2_Line_Threshold;
-  double Trajectory_DistanceDiff_2_Line_Threshold = 5 * Distance_2_Line_Threshold;
+  Eigen::Vector2d viaPoint = *via_points_->begin(); 
+  double x0 = teb().Pose(0).x();
+  double y0 = teb().Pose(0).y();
+  double x1 = viaPoint(0);
+  double y1 = viaPoint(1);
 
-  ROS_WARN("updateTrajectoryPerViapointForCoverage === >> ");
-
-  double max_delta_rot_from_start = 0.0;
-  double dist_when_max_delta_rot_from_start = 0.0;
-  for (int i=0; i <= look_ahead_idx; ++i)
+  double dist_to_viaPoint = std::sqrt((y1-y0)*(y1-y0)+(x1-x0)*(x1-x0)); 
+  
+  if(dist_to_viaPoint <= 1.2 * cfg_->trajectory.global_plan_viapoint_sep)
   {
-      double delta_rot_from_start = fabs(g2o::normalize_theta(teb().Pose(i).theta() - teb().Pose(0).theta()));
-      if(delta_rot_from_start > max_delta_rot_from_start)
-      {
-        max_delta_rot_from_start = delta_rot_from_start;
-        dist_when_max_delta_rot_from_start = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
-      }      
-  }
-
-  for (int i=0; i <= look_ahead_idx; ++i)
-  {           
-    PoseSE2 pose_current = teb().Pose(i);
-    PoseSE2 pose_tmp = teb().Pose(i);
-    double dist2line = 0.0;
-    double orientdiff2line = 0.0;
-    char update = 'N';
-
-    if(getDistanceP2L(pose_current, viaPoint_start, viaPoint_end, dist2line, orientdiff2line))
+    ROS_WARN("D2L >>>> ");
+    for (int i=0; i <= look_ahead_idx; ++i)
     {
-
-      if( max_delta_rot_from_start < Trajectory_OrientDiff_2_Line_Threshold && 
-          dist_when_max_delta_rot_from_start < Trajectory_DistanceDiff_2_Line_Threshold)
+      char update = 'N';
+      double dis_to_pose = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
+      if(dis_to_pose <= dist_to_viaPoint)
       {
-        if(dist2line <= Distance_2_Line_Threshold && orientdiff2line <= OrientDiff_2_Line_Threshold)
+        PoseSE2 pose_current = teb().Pose(i);
+        PoseSE2 pose_tmp = teb().Pose(i);
+        PoseSE2 pose_start = teb().Pose(0);
+        double dist2line = 0.0;
+        double orientdiff2line = 0.0;
+        double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance;
+        
+        // this is for case 1, only pose_start and viaPoint will be used
+        if(getDistanceP2L(pose_current, 1, pose_start, viaPoint_start, viaPoint, dist2line, orientdiff2line))
         {
+ 
           teb().Pose(i) = pose_current;
           update = 'Y';
-        }        
+          // if(orientdiff2line <= OrientDiff_2_Line_Threshold)
+          // {
+          //   teb().Pose(i) = pose_current;
+          //   update = 'Y';
+          // }                     
+        }
+
+        ROS_WARN("D2L<1> S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
+                x0, y0,
+                x1, y1, 
+                pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
+                dist2line, 
+                orientdiff2line, 
+                update,
+                pose_current.x(), pose_current.x(), pose_current.theta());
       }
-
-      // following is to virtualize the pose different vs coverage path for the first pose.
-      if(i==0)
-      {
-        tf::Vector3 origin_new(dist2line, dist_when_max_delta_rot_from_start, max_delta_rot_from_start);
-        pose_coverage_diff.setOrigin(origin_new);
-
-        tf::Matrix3x3 matrix_new;
-        matrix_new.setRotation(tf::createQuaternionFromYaw(orientdiff2line));
-        pose_coverage_diff.setBasis(matrix_new);
-      }
-
-      ROS_WARN("P2L: S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f/%.2f %.2f/%.2f) TrajD(%.2f/%.2f %.2f/%.2f) << %c >> PX(%.2f %.2f %.2f)", 
-              viaPoint_start(0), viaPoint_start(1),
-              viaPoint_end(0), viaPoint_end(1), 
-              pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
-              dist2line, Distance_2_Line_Threshold, 
-              orientdiff2line, OrientDiff_2_Line_Threshold, 
-              dist_when_max_delta_rot_from_start, Trajectory_DistanceDiff_2_Line_Threshold,
-              max_delta_rot_from_start, Trajectory_OrientDiff_2_Line_Threshold,
-              update,
-              pose_current.x(), pose_current.x(), pose_current.theta());
-    }
+    }    
   }
-  return true;
+  else
+  {
+    ROS_WARN("D2L ==skip== ");
+  }
 }
+
+// bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_idx, tf::Stamped<tf::Pose>& pose_coverage_diff)
+// {
+//   if (look_ahead_idx < 0 || look_ahead_idx >= teb().sizePoses())
+//   {
+//     look_ahead_idx = teb().sizePoses() - 1;
+//   }
+
+//   if (via_points_==NULL || via_points_history_->empty() || via_points_history_->size() < 2 )
+//   {
+//     return false; // return if there is no viapoint (near goal)
+//   }
+  
+//   Eigen::Vector2d viaPoint_start = *via_points_history_->begin(); 
+//   Eigen::Vector2d viaPoint_end = *(++via_points_history_->begin());
+
+//   double Distance_2_Line_Threshold = cfg_->goal_tolerance.xy_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
+//   double OrientDiff_2_Line_Threshold = cfg_->goal_tolerance.yaw_goal_tolerance * (cfg_->trajectory.dt_ref/0.3);
+//   double Trajectory_OrientDiff_2_Line_Threshold = 5 * OrientDiff_2_Line_Threshold;
+//   double Trajectory_DistanceDiff_2_Line_Threshold = 5 * Distance_2_Line_Threshold;
+
+//   ROS_WARN("updateTrajectoryPerViapointForCoverage === >> ");
+
+//   double max_delta_rot_from_start = 0.0;
+//   double dist_when_max_delta_rot_from_start = 0.0;
+//   for (int i=0; i <= look_ahead_idx; ++i)
+//   {
+//       double delta_rot_from_start = fabs(g2o::normalize_theta(teb().Pose(i).theta() - teb().Pose(0).theta()));
+//       if(delta_rot_from_start > max_delta_rot_from_start)
+//       {
+//         max_delta_rot_from_start = delta_rot_from_start;
+//         dist_when_max_delta_rot_from_start = (teb().Pose(i).position()-teb().Pose(0).position()).norm();
+//       }      
+//   }
+
+//   for (int i=0; i <= look_ahead_idx; ++i)
+//   {           
+//     PoseSE2 pose_current = teb().Pose(i);
+//     PoseSE2 pose_tmp = teb().Pose(i);
+//     double dist2line = 0.0;
+//     double orientdiff2line = 0.0;
+//     char update = 'N';
+
+//     if(getDistanceP2L(pose_current, viaPoint_start, viaPoint_end, dist2line, orientdiff2line))
+//     {
+
+//       if( max_delta_rot_from_start < Trajectory_OrientDiff_2_Line_Threshold && 
+//           dist_when_max_delta_rot_from_start < Trajectory_DistanceDiff_2_Line_Threshold)
+//       {
+//         if(dist2line <= Distance_2_Line_Threshold && orientdiff2line <= OrientDiff_2_Line_Threshold)
+//         {
+//           teb().Pose(i) = pose_current;
+//           update = 'Y';
+//         }        
+//       }
+
+//       // following is to virtualize the pose different vs coverage path for the first pose.
+//       if(i==0)
+//       {
+//         tf::Vector3 origin_new(dist2line, dist_when_max_delta_rot_from_start, max_delta_rot_from_start);
+//         pose_coverage_diff.setOrigin(origin_new);
+
+//         tf::Matrix3x3 matrix_new;
+//         matrix_new.setRotation(tf::createQuaternionFromYaw(orientdiff2line));
+//         pose_coverage_diff.setBasis(matrix_new);
+//       }
+
+//       ROS_WARN("P2L: S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f/%.2f %.2f/%.2f) TrajD(%.2f/%.2f %.2f/%.2f) << %c >> PX(%.2f %.2f %.2f)", 
+//               viaPoint_start(0), viaPoint_start(1),
+//               viaPoint_end(0), viaPoint_end(1), 
+//               pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
+//               dist2line, Distance_2_Line_Threshold, 
+//               orientdiff2line, OrientDiff_2_Line_Threshold, 
+//               dist_when_max_delta_rot_from_start, Trajectory_DistanceDiff_2_Line_Threshold,
+//               max_delta_rot_from_start, Trajectory_OrientDiff_2_Line_Threshold,
+//               update,
+//               pose_current.x(), pose_current.x(), pose_current.theta());
+//     }
+//   }
+//   return true;
+// }
 
 
 

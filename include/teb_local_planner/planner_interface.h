@@ -182,7 +182,7 @@ public:
     return false;
   }
 
-  virtual bool getDistanceP2L(PoseSE2& pose, Eigen::Vector2d start, Eigen::Vector2d end, 
+  virtual bool getDistanceP2L(PoseSE2& pose, int mode, Eigen::Vector2d start, Eigen::Vector2d end, 
                                         double& distance, double& orientdiff)
   {
     return false;
