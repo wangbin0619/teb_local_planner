@@ -1461,7 +1461,7 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
   
   if(dist_to_viaPoint <= 1.2 * cfg_->trajectory.global_plan_viapoint_sep)
   {
-    ROS_INFO("D2L >>>> ");
+    ROS_INFO("D2L >>process>> ");
     for (int i=0; i <= look_ahead_idx; ++i)
     {
       char update = 'N';
@@ -1485,14 +1485,14 @@ bool TebOptimalPlanner::updateTrajectoryPerViapointForCoverage(int look_ahead_id
           }                     
         }
 
-        ROS_INFO("D2L<1> S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
-                x0, y0,
-                x1, y1, 
-                pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
-                dist2line, 
-                orientdiff2line, 
-                update,
-                pose_current.x(), pose_current.x(), pose_current.theta());
+        // ROS_INFO("D2L<1> S(%.2f %.2f) E(%.2f %.2f) X(%.2f %.2f %.2f) PoseD(%.2f %.2f) << %c >> PX(%.2f %.2f %.2f)", 
+        //         x0, y0,
+        //         x1, y1, 
+        //         pose_tmp.x(), pose_tmp.x(), pose_tmp.theta(), 
+        //         dist2line, 
+        //         orientdiff2line, 
+        //         update,
+        //         pose_current.x(), pose_current.x(), pose_current.theta());
       }
     }    
   }

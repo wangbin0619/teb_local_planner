@@ -277,12 +277,12 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_x_[period_next_] = pose_linear_x;
 
-  ROS_INFO("Smoother X mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
-            mean_x, stdev_x, threshold_x_max, threshold_x_min, 
-            (fabs(mean_x) + cfg_.robot.max_vel_x * diff_time), 
-            (fabs(mean_x) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
-            diff_time,
-            pose.getOrigin().x(), pose_linear_x);
+  // ROS_INFO("Smoother X mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+  //           mean_x, stdev_x, threshold_x_max, threshold_x_min, 
+  //           (fabs(mean_x) + cfg_.robot.max_vel_x * diff_time), 
+  //           (fabs(mean_x) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
+  //           diff_time,
+  //           pose.getOrigin().x(), pose_linear_x);
 
   // process position_linear_y
   double sum_y = std::accumulate(std::begin(period_pose_linear_y_), std::end(period_pose_linear_y_), 0.0);
@@ -312,12 +312,12 @@ bool TebLocalPlannerROS::robotPoseSmoother(tf::Stamped<tf::Pose>& pose)
 
   period_pose_linear_y_[period_next_] = pose_linear_y;
 
-  ROS_INFO("Smoother Y mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
-            mean_y, stdev_y, threshold_y_max, threshold_y_min, 
-            (fabs(mean_y) + cfg_.robot.max_vel_x * diff_time), 
-            (fabs(mean_y) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
-            diff_time,
-            pose.getOrigin().y(), pose_linear_y);
+  // ROS_INFO("Smoother Y mean=%.2f std=%.2f max=%.2f min=%.2f (V=%.2f A=%.2f T=%.2f) in=%.2f out=%.2f", 
+  //           mean_y, stdev_y, threshold_y_max, threshold_y_min, 
+  //           (fabs(mean_y) + cfg_.robot.max_vel_x * diff_time), 
+  //           (fabs(mean_y) + ((fabs(robot_vel_.linear.x) + (cfg_.robot.acc_lim_x*diff_time))* diff_time)), 
+  //           diff_time,
+  //           pose.getOrigin().y(), pose_linear_y);
 
    // Skip process position_angular z since there is -3.14 to 3.14 use case can not be handled
   /*
